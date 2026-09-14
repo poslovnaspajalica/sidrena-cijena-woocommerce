@@ -9,8 +9,8 @@ if (!defined('ABSPATH')) {
 final class SC_Display {
 
     public static function init(): void {
-        add_filter('woocommerce_get_price_html', [__CLASS__, 'price_html'], 100, 2);
-        add_filter('woocommerce_cart_item_price', [__CLASS__, 'cart_item_price'], 100, 3);
+        add_filter('woocommerce_get_price_html', [__CLASS__, 'price_html'], PHP_INT_MAX, 2); // zadnji: neki pluginovi (npr. najniža cijena u 30 dana) grade HTML ispočetka
+        add_filter('woocommerce_cart_item_price', [__CLASS__, 'cart_item_price'], PHP_INT_MAX, 3);
         add_shortcode('sidrena_cijena', [__CLASS__, 'shortcode']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'styles']);
         add_action('woocommerce_blocks_loaded', [__CLASS__, 'blocks_support']);

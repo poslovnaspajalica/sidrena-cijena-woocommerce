@@ -120,6 +120,11 @@ WooCommerce CSV uvoz/izvoz proizvoda prenosi ih kao `Meta: _sidrena_cijena` itd.
   e-mailovima ili feedovima
 - `SC_Snapshot::get(WC_Product)` vraća `['price', 'date', 'source']`
 
+## Kompatibilnost s drugim pluginovima
+Filter za prikaz cijene izvršava se zadnji (`PHP_INT_MAX`), pa sidrena cijena ostaje i kad drugi plugin gradi
+HTML cijene ispočetka, npr. „WooCommerce – Najniža cijena u zadnjih 30 dana“. Testirano: akcijski proizvod
+prikazuje redovnu, akcijsku, najnižu u 30 dana i sidrenu cijenu.
+
 ## Ograničenja
 - Proizvodi koji se prikazuju kroz WooCommerce *product blokove* (Store API) na naslovnicama ne prolaze
   kroz `get_price_html()`; za njih koristi shortcode ili `SC_Display::render()` u predlošku.
