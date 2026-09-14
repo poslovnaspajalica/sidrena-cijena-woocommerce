@@ -57,6 +57,9 @@ jezike formatira prema WordPress formatu datuma. Filteri: `sidrena_cijena_curren
 - Akcijski proizvod: prikazuju se akcijska cijena, precrtana redovna, najniža u 30 dana (WooCommerce) i
   sidrena cijena. Sidrena je uvijek **redovna** cijena na referentni dan, ne akcijska.
 - Shortcode `[sidrena_cijena id="123"]` za bannere i landing stranice.
+- Izgled: veličina fonta (zadano 0.7em), boja, debljina i polje za vlastiti CSS. Zaseban kraći tekst za
+  listinge (npr. `Sidrena cijena: {cijena}`), puni tekst s datumom na stranici proizvoda. Klase
+  `.sc-sidrena`, `.sc-sidrena--single`, `.sc-sidrena--loop`, `.sc-amount`.
 - Novi proizvodi (kreirani nakon referentnog datuma) automatski dobivaju sidrenu cijenu = prva redovna
   cijena, s datumom kreiranja.
 - Kategorije iz stare Odluke NN 75/2025 (hrana, piće, kozmetika, čišćenje, toaletne potrepštine,

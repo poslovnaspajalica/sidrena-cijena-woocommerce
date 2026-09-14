@@ -210,6 +210,24 @@ final class SC_Admin {
                     <tr><th><label for="label">Tekst oznake</label></th>
                         <td><input type="text" class="regular-text" name="label" id="label" value="<?php echo esc_attr($s['label']); ?>">
                         <p class="description">Dostupno: <code>{datum}</code> (10. 9. 2026.), <code>{datum_iso}</code> (2026-09-10), <code>{cijena}</code>. Primjer prikaza: <?php echo wp_kses_post(strtr($s['label'], ['{datum}' => SC_Settings::format_date($s['referentni_datum']), '{datum_iso}' => $s['referentni_datum'], '{cijena}' => wc_price(19.9)])); ?></p></td></tr>
+                    <tr><th><label for="label_loop">Kraći tekst za listinge</label></th>
+                        <td><input type="text" class="regular-text" name="label_loop" id="label_loop" value="<?php echo esc_attr($s['label_loop']); ?>" placeholder="npr. Sidrena cijena: {cijena}">
+                        <p class="description">Koristi se u kategorijama, pretrazi, povezanim proizvodima i na naslovnici, gdje su kartice uske. Prazno = isti tekst kao gore. Puni tekst s datumom ostaje na stranici proizvoda.</p>
+                        <textarea name="label_loop_lang" rows="2" class="large-text code" placeholder="en: Anchor price: {cijena}"><?php echo esc_textarea($s['label_loop_lang']); ?></textarea>
+                        <p class="description">Prijevodi kraćeg teksta, jedan jezik po retku.</p></td></tr>
+                    <tr><th><label for="font_size">Veličina fonta</label></th>
+                        <td><input type="text" name="font_size" id="font_size" value="<?php echo esc_attr($s['font_size']); ?>" style="width:90px"> <span class="description">relativno na font cijene, npr. 0.7em, 0.6em, 12px. Plugin za najnižu cijenu u 30 dana koristi 0.6em.</span></td></tr>
+                    <tr><th><label for="boja">Boja teksta</label></th>
+                        <td><input type="text" name="boja" id="boja" value="<?php echo esc_attr($s['boja']); ?>" placeholder="#929191" style="width:110px"> <span class="description">HEX; prazno = naslijeđena boja cijene s blagom prozirnošću</span></td></tr>
+                    <tr><th><label for="font_weight">Debljina fonta</label></th>
+                        <td><select name="font_weight" id="font_weight">
+                            <?php foreach (['300' => 'Tanko (300)', '400' => 'Normalno (400)', '500' => 'Srednje (500)', '600' => 'Polupodebljano (600)', '700' => 'Podebljano (700)'] as $w => $wl) : ?>
+                                <option value="<?php echo esc_attr($w); ?>" <?php selected($s['font_weight'], $w); ?>><?php echo esc_html($wl); ?></option>
+                            <?php endforeach; ?>
+                        </select></td></tr>
+                    <tr><th><label for="custom_css">Vlastiti CSS</label></th>
+                        <td><textarea name="custom_css" id="custom_css" rows="4" class="large-text code" placeholder=".sc-sidrena--loop { font-size: 11px; }&#10;.sc-sidrena--single { font-size: 14px; color: #333; }"><?php echo esc_textarea($s['custom_css']); ?></textarea>
+                        <p class="description">Za fino podešavanje po temi. Klase: <code>.sc-sidrena</code> (sve), <code>.sc-sidrena--single</code> (stranica proizvoda), <code>.sc-sidrena--loop</code> (listinzi), <code>.sc-amount</code> (iznos). Učitava se nakon zadanih stilova.</p></td></tr>
                     <tr><th><label for="label_lang">Tekst oznake po jeziku</label></th>
                         <td><textarea name="label_lang" id="label_lang" rows="4" class="large-text code"><?php echo esc_textarea($s['label_lang']); ?></textarea>
                         <p class="description">Jedan jezik po retku, oblik <code>en: Anchor price ({datum}): {cijena}</code>. Jezik se prepoznaje iz Polylanga, WPML-a, TranslatePressa, parametra <code>?lang=</code> ili WordPress locale-a (trenutno: <code><?php echo esc_html(SC_Settings::current_language()); ?></code> u adminu). Za jezike koji nisu navedeni koristi se engleski, a ako ni njega nema, hrvatski tekst. <code>{datum}</code> se za nehrvatske jezike formatira prema WordPress formatu datuma.</p></td></tr>
@@ -379,6 +397,12 @@ final class SC_Admin {
             'izuzete_kategorije'   => array_map('intval', (array) ($p['izuzete_kategorije'] ?? [])),
             'label'                => wp_kses_post($p['label'] ?? '') ?: 'Sidrena cijena ({datum}): {cijena}',
             'label_lang'           => wp_kses_post($p['label_lang'] ?? ''),
+            'label_loop'           => wp_kses_post($p['label_loop'] ?? ''),
+            'label_loop_lang'      => wp_kses_post($p['label_loop_lang'] ?? ''),
+            'font_size'            => preg_match('/^\d+(\.\d+)?(px|em|rem|%)$/', trim((string) ($p['font_size'] ?? ''))) ? trim($p['font_size']) : '0.7em',
+            'boja'                 => sanitize_hex_color((string) ($p['boja'] ?? '')) ?: '',
+            'font_weight'          => in_array((string) ($p['font_weight'] ?? ''), ['300', '400', '500', '600', '700'], true) ? (string) $p['font_weight'] : '400',
+            'custom_css'           => wp_strip_all_tags((string) ($p['custom_css'] ?? '')),
             'prikaz_mod'           => in_array($p['prikaz_mod'] ?? '', ['on', 'off', 'datum'], true) ? $p['prikaz_mod'] : 'datum',
             'prikaz_od'            => $date($p['prikaz_od'] ?? '', '2026-10-01'),
             'prikaz_kosarica'      => empty($p['prikaz_kosarica']) ? 0 : 1,

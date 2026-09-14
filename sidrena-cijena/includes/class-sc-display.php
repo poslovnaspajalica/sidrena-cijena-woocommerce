@@ -13,6 +13,8 @@ final class SC_Display {
         add_filter('woocommerce_cart_item_price', [__CLASS__, 'cart_item_price'], PHP_INT_MAX, 3);
         add_shortcode('sidrena_cijena', [__CLASS__, 'shortcode']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'styles']);
+        add_action('woocommerce_before_shop_loop_item', [__CLASS__, 'loop_start'], 0);
+        add_action('woocommerce_after_shop_loop_item', [__CLASS__, 'loop_end'], 9999);
         add_action('woocommerce_blocks_loaded', [__CLASS__, 'blocks_support']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'blocks_script'], 20);
     }
@@ -56,14 +58,41 @@ final class SC_Display {
         wp_enqueue_script('sidrena-cijena-blocks', SC_URL . 'assets/blocks.js', ['wc-blocks-checkout'], SC_VERSION, true);
     }
 
+    /** Jesmo li unutar petlje proizvoda (listing, povezani proizvodi...). */
+    private static bool $in_loop = false;
+
     public static function styles(): void {
+        $size  = (string) SC_Settings::get('font_size');
+        if (!preg_match('/^\d+(\.\d+)?(px|em|rem|%)$/', $size)) {
+            $size = '0.7em';
+        }
+        $color  = sanitize_hex_color((string) SC_Settings::get('boja'));
+        $weight = in_array((string) SC_Settings::get('font_weight'), ['300', '400', '500', '600', '700'], true) ? (string) SC_Settings::get('font_weight') : '400';
+        $custom = (string) SC_Settings::get('custom_css');
         wp_register_style('sidrena-cijena', false, [], SC_VERSION);
         wp_enqueue_style('sidrena-cijena');
         wp_add_inline_style('sidrena-cijena',
-            '.sc-sidrena{display:block;font-size:.85em;font-weight:400;opacity:.85;margin-top:.15em;line-height:1.3}' .
+            '.sc-sidrena{display:block;font-size:' . $size . ';font-weight:' . $weight . ';' . ($color ? 'color:' . $color . ';' : 'opacity:.85;') . 'margin-top:.15em;line-height:1.25;white-space:normal;overflow-wrap:anywhere;text-decoration:none}' .
+            'del .sc-sidrena,ins .sc-sidrena{display:none}' .
             '.sc-sidrena .sc-amount{white-space:nowrap}' .
-            '.woocommerce-cart-form .sc-sidrena,.woocommerce-mini-cart .sc-sidrena{font-size:.8em}'
+            ($custom !== '' ? "\n" . wp_strip_all_tags($custom) : '')
         );
+    }
+
+    public static function loop_start(): void {
+        self::$in_loop = true;
+    }
+
+    public static function loop_end(): void {
+        self::$in_loop = false;
+    }
+
+    /** Listing kontekst: unutar WooCommerce petlje ili bilo koja stranica koja nije pojedinačni proizvod. */
+    public static function is_loop_context(): bool {
+        if (self::$in_loop) {
+            return true;
+        }
+        return !(function_exists('is_product') && is_product());
     }
 
     /**
@@ -131,13 +160,14 @@ final class SC_Display {
             : wc_price($r['min']);
 
         $lang  = SC_Settings::current_language();
-        $label = SC_Settings::label_for($lang);
+        $loop  = self::is_loop_context();
+        $label = SC_Settings::label_for($lang, $loop);
         $out = strtr($label, [
             '{datum}'     => SC_Settings::format_date($r['date'], $lang),
             '{datum_iso}' => $r['date'],
             '{cijena}'    => '<span class="sc-amount">' . $amount . '</span>',
         ]);
-        return '<span class="sc-sidrena" lang="' . esc_attr($lang) . '">' . $out . '</span>';
+        return '<span class="sc-sidrena' . ($loop ? ' sc-sidrena--loop' : ' sc-sidrena--single') . '" lang="' . esc_attr($lang) . '">' . $out . '</span>';
     }
 
     public static function price_html($html, $product) {

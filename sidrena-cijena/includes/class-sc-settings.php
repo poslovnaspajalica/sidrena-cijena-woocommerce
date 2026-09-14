@@ -15,6 +15,12 @@ final class SC_Settings {
             'izuzete_kategorije' => [],
             'label'              => 'Sidrena cijena ({datum}): {cijena}',
             'label_lang'         => "en: Anchor price ({datum}): {cijena}\nde: Ankerpreis ({datum}): {cijena}\nit: Prezzo di riferimento ({datum}): {cijena}",
+            'label_loop'         => '',   // kraći tekst za listinge; prazno = isti kao label
+            'label_loop_lang'    => '',
+            'font_size'          => '0.7em',
+            'boja'               => '',   // prazno = naslijeđena
+            'font_weight'        => '400',
+            'custom_css'         => '',
             'prikaz_mod'         => 'datum', // on | off | datum
             'prikaz_od'          => '2026-10-01',
             'prikaz_kosarica'    => 1,
@@ -138,14 +144,20 @@ final class SC_Settings {
         return (string) apply_filters('sidrena_cijena_current_language', $lang);
     }
 
-    /** Tekst oznake za jezik. */
-    public static function label_for(string $lang): string {
-        $labels = self::parse_label_lang((string) self::get('label_lang'));
+    /** Tekst oznake za jezik; $loop = kraći tekst za listinge ako je definiran. */
+    public static function label_for(string $lang, bool $loop = false): string {
+        if ($loop && trim((string) self::get('label_loop')) !== '') {
+            $labels  = self::parse_label_lang((string) self::get('label_loop_lang'));
+            $default = (string) self::get('label_loop');
+        } else {
+            $labels  = self::parse_label_lang((string) self::get('label_lang'));
+            $default = (string) self::get('label');
+        }
         $label = $labels[$lang] ?? ($lang === 'hr' ? '' : ($labels['en'] ?? ''));
         if ($label === '' || $lang === 'hr') {
-            $label = (string) self::get('label');
+            $label = $default;
         }
-        return (string) apply_filters('sidrena_cijena_label', $label, $lang);
+        return (string) apply_filters('sidrena_cijena_label', $label, $lang, $loop);
     }
 
     /** "en: Anchor price..." po retku -> ['en' => 'Anchor price...'] */
