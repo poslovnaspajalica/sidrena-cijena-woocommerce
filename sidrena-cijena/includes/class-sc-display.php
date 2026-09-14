@@ -1,0 +1,186 @@
+<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+/**
+ * Prikaz sidrene cijene na frontendu.
+ */
+final class SC_Display {
+
+    public static function init(): void {
+        add_filter('woocommerce_get_price_html', [__CLASS__, 'price_html'], 100, 2);
+        add_filter('woocommerce_cart_item_price', [__CLASS__, 'cart_item_price'], 100, 3);
+        add_shortcode('sidrena_cijena', [__CLASS__, 'shortcode']);
+        add_action('wp_enqueue_scripts', [__CLASS__, 'styles']);
+        add_action('woocommerce_blocks_loaded', [__CLASS__, 'blocks_support']);
+        add_action('wp_enqueue_scripts', [__CLASS__, 'blocks_script'], 20);
+    }
+
+    /** Čisti tekst sidrene cijene, npr. "Sidrena cijena (10. 9. 2026.): 10,49 €" (za blokove, e-mail, feedove). */
+    public static function render_text(WC_Product $product): string {
+        $html = self::render($product);
+        if ($html === '') {
+            return '';
+        }
+        return trim(html_entity_decode(wp_strip_all_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+
+    /** Store API: dodaj sidrenu cijenu na stavke košarice (Cart / Checkout / Mini-cart blokovi). */
+    public static function blocks_support(): void {
+        if (!function_exists('woocommerce_store_api_register_endpoint_data')) {
+            return;
+        }
+        woocommerce_store_api_register_endpoint_data([
+            'endpoint'        => 'cart-item',
+            'namespace'       => 'sidrena-cijena',
+            'data_callback'   => static function ($cart_item): array {
+                $product = $cart_item['data'] ?? null;
+                $label = ($product instanceof WC_Product && SC_Settings::get('prikaz_kosarica')) ? self::render_text($product) : '';
+                return ['label' => $label];
+            },
+            'schema_callback' => static fn(): array => [
+                'label' => ['description' => 'Sidrena cijena (tekst)', 'type' => 'string', 'readonly' => true],
+            ],
+            'schema_type'     => ARRAY_A,
+        ]);
+    }
+
+    public static function blocks_script(): void {
+        if (!SC_Settings::display_active() || !SC_Settings::get('prikaz_kosarica') || !wp_script_is('wc-blocks-checkout', 'registered')) {
+            return;
+        }
+        if (!(function_exists('is_cart') && is_cart()) && !(function_exists('is_checkout') && is_checkout()) && !has_block('woocommerce/mini-cart')) {
+            return;
+        }
+        wp_enqueue_script('sidrena-cijena-blocks', SC_URL . 'assets/blocks.js', ['wc-blocks-checkout'], SC_VERSION, true);
+    }
+
+    public static function styles(): void {
+        wp_register_style('sidrena-cijena', false, [], SC_VERSION);
+        wp_enqueue_style('sidrena-cijena');
+        wp_add_inline_style('sidrena-cijena',
+            '.sc-sidrena{display:block;font-size:.85em;font-weight:400;opacity:.85;margin-top:.15em;line-height:1.3}' .
+            '.sc-sidrena .sc-amount{white-space:nowrap}' .
+            '.woocommerce-cart-form .sc-sidrena,.woocommerce-mini-cart .sc-sidrena{font-size:.8em}'
+        );
+    }
+
+    /**
+     * Sidrena cijena za prikaz (s PDV-om prema postavkama trgovine).
+     * @return array{min:float,max:float,date:string}|null
+     */
+    public static function resolve(WC_Product $product): ?array {
+        if (SC_Snapshot::is_excluded($product)) {
+            return null;
+        }
+        if ($product->is_type('variable')) {
+            $min = null;
+            $max = null;
+            $date = '';
+            foreach ($product->get_children() as $child_id) {
+                $child = wc_get_product($child_id);
+                if (!$child || !$child->is_purchasable() || 'publish' !== $child->get_status()) {
+                    continue;
+                }
+                $r = self::resolve($child);
+                if (!$r) {
+                    continue;
+                }
+                $min  = $min === null ? $r['min'] : min($min, $r['min']);
+                $max  = $max === null ? $r['max'] : max($max, $r['max']);
+                $date = $date ?: $r['date'];
+            }
+            if ($min === null) {
+                return null;
+            }
+            return ['min' => $min, 'max' => $max, 'date' => $date];
+        }
+
+        if ($product->is_type('grouped')) {
+            return null; // svaki child ima svoju cijenu i svoju sidrenu
+        }
+
+        $s = SC_Snapshot::get($product);
+        if (!$s) {
+            if (SC_Settings::get('prikaz_bez_sidrene') === 'redovna') {
+                $regular = $product->get_regular_price();
+                if ($regular === '' || $regular === null) {
+                    return null;
+                }
+                $s = ['price' => (float) $regular, 'date' => (string) SC_Settings::get('referentni_datum')];
+            } else {
+                return null;
+            }
+        }
+
+        $display = (float) wc_get_price_to_display($product, ['price' => $s['price'], 'qty' => 1]);
+        return ['min' => $display, 'max' => $display, 'date' => $s['date']];
+    }
+
+    public static function render(WC_Product $product, bool $force = false): string {
+        if (!$force && !SC_Settings::display_active()) {
+            return '';
+        }
+        $r = self::resolve($product);
+        if (!$r) {
+            return '';
+        }
+        $amount = $r['min'] < $r['max']
+            ? wc_format_price_range($r['min'], $r['max'])
+            : wc_price($r['min']);
+
+        $lang  = SC_Settings::current_language();
+        $label = SC_Settings::label_for($lang);
+        $out = strtr($label, [
+            '{datum}'     => SC_Settings::format_date($r['date'], $lang),
+            '{datum_iso}' => $r['date'],
+            '{cijena}'    => '<span class="sc-amount">' . $amount . '</span>',
+        ]);
+        return '<span class="sc-sidrena" lang="' . esc_attr($lang) . '">' . $out . '</span>';
+    }
+
+    public static function price_html($html, $product) {
+        if (!$product instanceof WC_Product) {
+            return $html;
+        }
+        if (is_admin() && !wp_doing_ajax()) {
+            return $html;
+        }
+        if (!is_string($html) || $html === '' || str_contains($html, 'sc-sidrena')) {
+            return $html;
+        }
+        $extra = self::render($product);
+        if ($extra === '') {
+            return $html;
+        }
+        return $html . $extra;
+    }
+
+    public static function cart_item_price($price_html, $cart_item, $cart_item_key) {
+        if (!SC_Settings::get('prikaz_kosarica')) {
+            return $price_html;
+        }
+        if (!is_string($price_html) || str_contains($price_html, 'sc-sidrena')) {
+            return $price_html;
+        }
+        $product = $cart_item['data'] ?? null;
+        if (!$product instanceof WC_Product) {
+            return $price_html;
+        }
+        return $price_html . self::render($product);
+    }
+
+    public static function shortcode($atts): string {
+        $atts = shortcode_atts(['id' => 0, 'force' => 0], $atts, 'sidrena_cijena');
+        $id = (int) $atts['id'];
+        if (!$id) {
+            global $product;
+            if ($product instanceof WC_Product) {
+                $id = $product->get_id();
+            }
+        }
+        $p = $id ? wc_get_product($id) : null;
+        return $p ? self::render($p, !empty($atts['force'])) : '';
+    }
+}
