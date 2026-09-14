@@ -104,26 +104,31 @@ final class SC_Display {
             return null;
         }
         if ($product->is_type('variable')) {
-            $min = null;
-            $max = null;
+            $children = array_map('intval', $product->get_children());
+            if (!$children) {
+                return null;
+            }
+            global $wpdb;
+            $in   = implode(',', $children);
+            $rows = $wpdb->get_results(
+                "SELECT m.post_id, m.meta_value, d.meta_value AS datum FROM {$wpdb->postmeta} m
+                 JOIN {$wpdb->posts} p ON p.ID = m.post_id AND p.post_status = 'publish'
+                 LEFT JOIN {$wpdb->postmeta} d ON d.post_id = m.post_id AND d.meta_key = '" . SC_Snapshot::META_DATE . "'
+                 WHERE m.post_id IN ($in) AND m.meta_key = '" . SC_Snapshot::META_PRICE . "' AND m.meta_value <> ''",
+                ARRAY_A
+            );
+            $min = $max = null;
             $date = '';
-            foreach ($product->get_children() as $child_id) {
-                $child = wc_get_product($child_id);
-                if (!$child || !$child->is_purchasable() || 'publish' !== $child->get_status()) {
-                    continue;
-                }
-                $r = self::resolve($child);
-                if (!$r) {
-                    continue;
-                }
-                $min  = $min === null ? $r['min'] : min($min, $r['min']);
-                $max  = $max === null ? $r['max'] : max($max, $r['max']);
-                $date = $date ?: $r['date'];
+            foreach ($rows as $r) {
+                $v = (float) wc_get_price_to_display($product, ['price' => (float) $r['meta_value'], 'qty' => 1]);
+                $min  = $min === null ? $v : min($min, $v);
+                $max  = $max === null ? $v : max($max, $v);
+                $date = $date ?: (string) $r['datum'];
             }
             if ($min === null) {
                 return null;
             }
-            return ['min' => $min, 'max' => $max, 'date' => $date];
+            return ['min' => $min, 'max' => $max, 'date' => $date ?: (string) SC_Settings::get('referentni_datum')];
         }
 
         if ($product->is_type('grouped')) {

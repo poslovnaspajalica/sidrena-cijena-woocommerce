@@ -26,8 +26,9 @@ Pravni temelj: Zakon o iznimnim mjerama kontrole cijena (NN 40/2025), čl. 6, 8,
 3. **Status → Generiraj cjenik sada**: prvi cjenik. Dalje se generira automatski svaki dan u 04:00.
 
 Aktivacija plugina ne pokreće ništa. Snapshot i prvi cjenik su ručne akcije s prikazom napretka; obje se
-mogu prekinuti i nastaviti. Snapshot koristi skupne SQL upise (25.000 proizvoda: oko 12 s), cjenik ide u
-koracima po 250 proizvoda (25.000 proizvoda: oko 40 s lokalno, na dijeljenom hostingu nekoliko minuta).
+mogu prekinuti i nastaviti. Sve ide u koracima po 100 proizvoda: snapshot skupnim SQL upisima (25.000
+proizvoda: oko 12 s), cjenik izravnim SQL upitima bez učitavanja WooCommerce objekata, 6 upita po koraku
+(25.000 proizvoda: oko 20 s obrade).
 4. Provjeri javnu stranicu `https://tvoja-domena.hr/cjenik/`.
 
 ## Prekidač prikaza
@@ -81,31 +82,19 @@ i dodatne stupce (ignoriraju se), pa se može uvesti i izvoz iz ERP-a.
   barkod; dostupnost. Dodatno: datum sidrene cijene; kategorija; url.
 - CSV: UTF-8 s BOM-om, separator `;`, sve vrijednosti u navodnicima. Decimalni znak podesiv.
 - Cijene u cjeniku su **s PDV-om** (maloprodajne), bez obzira kako su unesene u WooCommerce.
-- Generira se u batchevima po 500 proizvoda, radi i na katalozima s više desetaka tisuća proizvoda
-  (test: 23.700 proizvoda u 40 s, 110 MB memorije).
+- Generira se izravnim SQL upitima u koracima po 100 proizvoda (6 laganih upita po koraku), bez
+  učitavanja WooCommerce objekata; radi i na katalozima s više desetaka tisuća proizvoda.
 - Datoteke starije od zadanog broja dana (min. 31) se brišu.
 
 ### Automatika (cron)
-Zadano vrijeme generiranja je **04:00** po vremenskoj zoni WordPressa (Postavke → Općenito). Tri mehanizma:
+Zadano je **isključeno**: cjenik se generira ručno na Status kartici. U Postavkama se može uključiti
+„Svaki dan u HH:MM“ (zadano 04:00 po vremenskoj zoni WordPressa; Odluka traži do 8:00). To koristi WP-Cron,
+koji se pokreće s prvim zahtjevom nakon zadanog vremena. Ako hosting ima cron (cPanel/Plesk), Status kartica
+nudi URL s tokenom koji se može zakazati u točno vrijeme; poziv odmah vraća odgovor i generira u pozadini.
 
-1. **Vanjski okidač** (preporučeno, radi bez posjeta i bez WP-Crona): u adminu na kartici Status je gotov
-   URL oblika `https://domena.hr/?sidrena_cron=TOKEN`. Zakaži ga u cPanel/Plesk cronu ili na cron-job.org:
-   ```
-   0 4 * * * curl -s "https://domena.hr/?sidrena_cron=TOKEN" > /dev/null
-   ```
-   Uz `&only_due=1` može se zvati i češće, generira samo ako današnji cjenik ne postoji.
-2. **WP-Cron**: zakazan za isto vrijeme, pokreće ga prvi posjet nakon toga.
-3. **Rezerva**: ako je vrijeme prošlo a današnji cjenik ne postoji, generira se u pozadini na kraju prvog
-   sljedećeg zahtjeva (nakon što je stranica isporučena posjetitelju), i kad je WP-Cron loopback blokiran.
-
-WP-CLI alternativa: `0 4 * * * cd /putanja/do/wp && wp sidrena export`.
-
-Okidač odmah vraća JSON odgovor i generira u pozadini, pa ne ovisi o timeoutu web servera. Za sinkrono
-izvršavanje (testiranje) dodaj `&wait=1`. Ako je zadnji cjenik stariji od 24 h, admin vidi crveno upozorenje.
-
-Važno: WordPress i WooCommerce nemaju vlastiti pravi scheduler. WP-Cron i Action Scheduler se pokreću
-samo unutar HTTP zahtjeva. Jedini način da se nešto dogodi točno u 04:00 bez ikakvog posjeta je vanjski
-cron (hosting ili servis), zato je mehanizam 1 preporučen. Mehanizmi 2 i 3 su rezerva.
+Ništa se nikad ne pokreće zbog posjeta kupca, ni pri aktivaciji plugina. Pozadinska obrada ide u koracima po
+100 proizvoda s pauzom od 0,15 s između koraka i nikad ne rade dvije obrade istovremeno (atomarno
+zaključavanje). Ako je zadnji cjenik stariji od 24 h, a automatika je uključena, admin vidi upozorenje.
 
 ## WP-CLI
 - `wp sidrena snapshot [--overwrite]` – zabilježi sidrene cijene

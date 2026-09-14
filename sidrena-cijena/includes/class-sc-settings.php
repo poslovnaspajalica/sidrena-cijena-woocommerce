@@ -32,6 +32,7 @@ final class SC_Settings {
             'oznaka_objekta'     => '1',
             'broj_pohrane'       => '1',
             'naziv_trgovca'      => '',
+            'cron_nacin'         => 'rucno',   // rucno | wpcron
             'cron_vrijeme'       => '04:00',
             'cron_token'         => '',
             'retencija_dana'     => 35,

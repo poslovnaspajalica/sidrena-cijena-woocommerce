@@ -222,7 +222,7 @@ final class SC_Snapshot {
     }
 
     /** Cijeli snapshot u jednom prolazu (WP-CLI / cron). */
-    public static function run_full(bool $overwrite = false, int $batch = 1000): array {
+    public static function run_full(bool $overwrite = false, int $batch = 100): array {
         $last = 0;
         $tot  = ['written' => 0, 'skipped' => 0];
         do {
@@ -242,7 +242,7 @@ final class SC_Snapshot {
         }
         $last_id   = isset($_POST['last_id']) ? (int) $_POST['last_id'] : 0;
         $overwrite = !empty($_POST['overwrite']);
-        $r = self::run_batch($last_id, 1000, $overwrite);
+        $r = self::run_batch($last_id, 100, $overwrite);
         if ($r['done']) {
             wp_cache_flush();
             $r['stats'] = self::stats(true);
@@ -293,32 +293,26 @@ final class SC_Snapshot {
 
     private static function compute_stats(): array {
         global $wpdb;
-        $cat_tt = SC_Settings::excluded_category_term_taxonomy_ids();
-        $cat_sql = '';
-        if ($cat_tt) {
-            $in = implode(',', $cat_tt);
-            $cat_sql = "AND NOT EXISTS (SELECT 1 FROM {$wpdb->term_relationships} tr WHERE tr.object_id = IF(p.post_type='product_variation', p.post_parent, p.ID) AND tr.term_taxonomy_id IN ($in))";
-        }
-        $row = $wpdb->get_row(
-            "SELECT COUNT(*) AS total, SUM(sc.post_id IS NOT NULL) AS with_sidrena
-             FROM {$wpdb->posts} p
-             JOIN {$wpdb->postmeta} rp ON rp.post_id=p.ID AND rp.meta_key='_regular_price' AND rp.meta_value<>''
-             LEFT JOIN {$wpdb->postmeta} sc ON sc.post_id=p.ID AND sc.meta_key='" . self::META_PRICE . "' AND sc.meta_value<>''
-             LEFT JOIN {$wpdb->postmeta} ex ON ex.post_id=p.ID AND ex.meta_key='" . self::META_EXCL . "' AND ex.meta_value='yes'
-             LEFT JOIN {$wpdb->postmeta} exp ON exp.post_id=p.post_parent AND exp.meta_key='" . self::META_EXCL . "' AND exp.meta_value='yes'
-             WHERE p.post_type IN ('product','product_variation') AND p.post_status IN ('publish','private')
-               AND ex.post_id IS NULL AND exp.post_id IS NULL $cat_sql",
-            ARRAY_A
-        );
+        // Lagani upiti po indeksu meta_key; bez višestrukih JOIN-ova nad postmeta.
+        $count = static function (string $key) use ($wpdb): int {
+            return (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id
+                 WHERE m.meta_key = %s AND m.meta_value <> '' AND p.post_type IN ('product','product_variation') AND p.post_status IN ('publish','private')",
+                $key
+            ));
+        };
+        $total    = $count('_regular_price');
+        $with     = $count(self::META_PRICE);
         $excluded = (int) $wpdb->get_var(
-            "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} ex ON ex.post_id=p.ID AND ex.meta_key='" . self::META_EXCL . "' AND ex.meta_value='yes'
-             WHERE p.post_type='product' AND p.post_status IN ('publish','private')"
+            "SELECT COUNT(*) FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id
+             WHERE m.meta_key = '" . self::META_EXCL . "' AND m.meta_value = 'yes' AND p.post_type = 'product' AND p.post_status IN ('publish','private')"
         );
         return [
-            'total'    => (int) ($row['total'] ?? 0),
-            'with'     => (int) ($row['with_sidrena'] ?? 0),
-            'without'  => (int) ($row['total'] ?? 0) - (int) ($row['with_sidrena'] ?? 0),
+            'total'    => $total,
+            'with'     => $with,
+            'without'  => max(0, $total - $with),
             'excluded' => $excluded,
         ];
     }
+
 }

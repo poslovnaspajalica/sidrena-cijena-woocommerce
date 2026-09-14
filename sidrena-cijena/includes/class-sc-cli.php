@@ -22,7 +22,10 @@ final class SC_CLI {
 
     /** Generiraj cjenik (.csv i .xml) sada. */
     public function export(array $args, array $assoc): void {
-        $r = SC_Export::run_full('cli');
+        $r = SC_Export::run_background('cli');
+        if ($r === null) {
+            WP_CLI::error('Već je u tijeku drugo generiranje.');
+        }
         WP_CLI::success(sprintf('Cjenik generiran: %s / %s (%d redaka, %d bez sidrene, %ds)', $r['csv'], $r['xml'], $r['rows'], $r['missing'], $r['seconds']));
     }
 

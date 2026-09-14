@@ -4,20 +4,26 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Generiranje cjenika (.csv i .xml), cron, retencija.
+ * Generiranje cjenika (.csv i .xml) u malim koracima izravnim SQL upitima, cron, retencija.
+ *
+ * Načela:
+ *  - nikad se ne pokreće zbog posjeta kupca (samo admin klik, WP-Cron ili vanjski okidač)
+ *  - najviše CHUNK proizvoda po koraku, nekoliko laganih upita po koraku, pauza između koraka
+ *  - samo jedna obrada istovremeno (atomarno zaključavanje)
  */
 final class SC_Export {
-    public const CRON_HOOK   = 'sidrena_cijena_daily_export';
-    public const INITIAL_HOOK = 'sidrena_cijena_initial';
-    public const STATE_OPT   = 'sidrena_cijena_export_state';
-    public const LAST_OPT    = 'sidrena_cijena_last_export';
-    public const BATCH       = 250;
+    public const CRON_HOOK = 'sidrena_cijena_daily_export';
+    public const STATE_OPT = 'sidrena_cijena_export_state';
+    public const LAST_OPT  = 'sidrena_cijena_last_export';
+    public const LOCK_OPT  = 'sidrena_cijena_export_lock';
+    public const CHUNK     = 100;
+    public const PAUSE_US  = 150000; // 0,15 s pauze između koraka u pozadinskoj obradi
+    public const LOCK_TTL  = 20 * MINUTE_IN_SECONDS;
 
     public static function init(): void {
         add_action(self::CRON_HOOK, [__CLASS__, 'cron']);
-        add_action('wp_loaded', [__CLASS__, 'maybe_external_trigger']);
-        add_action('shutdown', [__CLASS__, 'maybe_catch_up'], 999);
         add_action('wp_ajax_sc_export_batch', [__CLASS__, 'ajax_batch']);
+        add_action('wp_loaded', [__CLASS__, 'maybe_external_trigger']);
     }
 
     /* ---------- Direktoriji ---------- */
@@ -62,6 +68,9 @@ final class SC_Export {
 
     public static function schedule_cron(): void {
         self::unschedule_cron();
+        if (SC_Settings::get('cron_nacin') !== 'wpcron') {
+            return;
+        }
         $hhmm = (string) SC_Settings::get('cron_vrijeme');
         if (!preg_match('/^\d{1,2}:\d{2}$/', $hhmm)) {
             $hhmm = '04:00';
@@ -80,154 +89,49 @@ final class SC_Export {
     }
 
     public static function cron(): void {
-        self::run_if_free('cron');
+        if (SC_Settings::get('cron_nacin') !== 'wpcron') {
+            return;
+        }
+        self::run_background('cron');
     }
 
-    /** Zaključano izvršavanje: sprječava dva istovremena generiranja. */
-    public static function run_if_free(string $trigger): ?array {
-        if (get_transient('sc_export_lock')) {
+    /* ---------- Zaključavanje (atomarno preko add_option) ---------- */
+
+    public static function acquire_lock(string $who): bool {
+        global $wpdb;
+        $val = $who . '|' . time();
+        // add_option koristi INSERT; ako redak postoji, ne uspije. Bez autoload-a.
+        if (add_option(self::LOCK_OPT, $val, '', false)) {
+            return true;
+        }
+        $cur = (string) $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name=%s", self::LOCK_OPT));
+        $ts  = (int) substr((string) strrchr($cur, '|'), 1);
+        if ($ts && time() - $ts > self::LOCK_TTL) {
+            // Zastarjelo (proces je umro): preuzmi.
+            update_option(self::LOCK_OPT, $val, false);
+            return true;
+        }
+        return false;
+    }
+
+    public static function release_lock(): void {
+        delete_option(self::LOCK_OPT);
+    }
+
+    public static function lock_info(): ?string {
+        global $wpdb;
+        $cur = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name=%s", self::LOCK_OPT));
+        if (!$cur) {
             return null;
         }
-        set_transient('sc_export_lock', $trigger, 15 * MINUTE_IN_SECONDS);
-        try {
-            return self::run_full($trigger);
-        } finally {
-            delete_transient('sc_export_lock');
-        }
-    }
-
-    /** Je li današnji cjenik već generiran (od zakazanog vremena naovamo). */
-    public static function is_due(): bool {
-        $due_ts = SC_Settings::today_run_timestamp();
-        if (time() < $due_ts) {
-            return false;
-        }
-        $last = self::last();
-        return empty($last['time']) || (int) $last['time'] < $due_ts;
-    }
-
-    /**
-     * Vanjski okidač: https://domena/?sidrena_cron=TOKEN (za sistemski cron ili vanjski servis).
-     * Radi neovisno o WP-Cronu. Uvijek generira, i kad danas već postoji cjenik (osim uz ?only_due=1).
-     */
-    public static function maybe_external_trigger(): void {
-        if (!isset($_GET['sidrena_cron'])) {
-            return;
-        }
-        $given = (string) $_GET['sidrena_cron'];
-        if (!hash_equals(SC_Settings::cron_token(), $given)) {
-            status_header(403);
-            header('Content-Type: application/json; charset=utf-8');
-            echo wp_json_encode(['ok' => false, 'error' => 'invalid token']);
-            exit;
-        }
-        nocache_headers();
-        header('Content-Type: application/json; charset=utf-8');
-        if (!empty($_GET['only_due']) && !self::is_due()) {
-            echo wp_json_encode(['ok' => true, 'skipped' => 'already generated today', 'last' => self::last()]);
-            exit;
-        }
-        if (get_transient('sc_export_lock')) {
-            echo wp_json_encode(['ok' => false, 'error' => 'export already running']);
-            exit;
-        }
-        if (!empty($_GET['wait'])) {
-            // Sinkrono (za testiranje); može premašiti timeout web servera na velikim katalozima.
-            SC_Snapshot::run_full(false);
-            $r = self::run_if_free('external');
-            echo wp_json_encode($r === null ? ['ok' => false, 'error' => 'export already running'] : ['ok' => true] + $r);
-            exit;
-        }
-        // Zadano: odmah odgovori, generiraj u pozadini (izbjegava timeout servera).
-        echo wp_json_encode(['ok' => true, 'started' => true, 'last' => self::last()]);
-        self::finish_request();
-        SC_Snapshot::run_full(false);
-        self::run_if_free('external');
-        exit;
-    }
-
-    /** Pošalji odgovor klijentu i nastavi izvršavanje u pozadini. */
-    private static function finish_request(): void {
-        ignore_user_abort(true);
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(0);
-        }
-        if (function_exists('fastcgi_finish_request')) {
-            fastcgi_finish_request();
-        } elseif (function_exists('litespeed_finish_request')) {
-            litespeed_finish_request();
-        } else {
-            if (!headers_sent()) {
-                header('Connection: close');
-                header('Content-Length: ' . (int) ob_get_length());
-            }
-            while (ob_get_level() > 0) {
-                ob_end_flush();
-            }
-            flush();
-        }
-    }
-
-    /** Je li zadnji cjenik stariji od 24 h (za upozorenje u adminu). */
-    public static function is_stale(): bool {
-        $last = self::last();
-        return empty($last['time']) || (time() - (int) $last['time']) > 26 * HOUR_IN_SECONDS;
-    }
-
-    /**
-     * Rezerva: ako je zakazano vrijeme prošlo, a današnji cjenik ne postoji (WP-Cron nije uspio),
-     * generiraj ga na kraju prvog zahtjeva, nakon što je odgovor poslan posjetitelju.
-     */
-    public static function maybe_catch_up(): void {
-        if (PHP_SAPI === 'cli' || wp_doing_cron() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST) || (defined('WP_CLI') && WP_CLI)) {
-            return;
-        }
-        if (isset($_GET['sidrena_cron']) || get_transient('sc_export_lock') || !self::is_due()) {
-            return;
-        }
-        self::finish_request();
-        SC_Snapshot::run_full(false);
-        self::run_if_free('catch-up');
-    }
-
-    /** Obriši objavljenu datoteku cjenika (admin). */
-    public static function delete_file(string $name): bool {
-        $name = basename($name);
-        $ok = false;
-        foreach (self::list_files() as $f) {
-            if ($f['name'] === $name) {
-                $ok = @unlink(self::files_dir() . $name);
-                break;
-            }
-        }
-        if ($ok) {
-            $last = self::last();
-            if (($last['csv'] ?? '') === $name || ($last['xml'] ?? '') === $name) {
-                // Zadnji cjenik = najnoviji preostali par.
-                $files = self::list_files();
-                $csv = $xml = null;
-                foreach ($files as $f) {
-                    if ($f['ext'] === 'csv' && !$csv) { $csv = $f; }
-                    if ($f['ext'] === 'xml' && !$xml) { $xml = $f; }
-                }
-                if ($csv || $xml) {
-                    $last['csv'] = $csv['name'] ?? '';
-                    $last['xml'] = $xml['name'] ?? '';
-                    $last['time'] = max($csv['mtime'] ?? 0, $xml['mtime'] ?? 0);
-                    update_option(self::LAST_OPT, $last, false);
-                } else {
-                    delete_option(self::LAST_OPT);
-                }
-            }
-            self::write_index();
-        }
-        return $ok;
+        $ts = (int) substr((string) strrchr((string) $cur, '|'), 1);
+        return (time() - $ts > self::LOCK_TTL) ? null : (string) $cur;
     }
 
     /* ---------- Naziv datoteke ---------- */
 
     public static function build_filename(string $ext, ?int $ts = null): string {
-        $s = SC_Settings::all();
+        $s  = SC_Settings::all();
         $ts = $ts ?? time();
         $parts = [
             sanitize_title((string) $s['oblik_objekta']) ?: 'webshop',
@@ -239,7 +143,7 @@ final class SC_Export {
         return implode('_', $parts) . '.' . $ext;
     }
 
-    /* ---------- Batch state ---------- */
+    /* ---------- Stanje ---------- */
 
     public static function state(): ?array {
         $s = get_option(self::STATE_OPT, null);
@@ -250,20 +154,21 @@ final class SC_Export {
         self::ensure_dirs();
         $id = wp_generate_password(8, false);
         $state = [
-            'id'       => $id,
-            'trigger'  => $trigger,
-            'started'  => time(),
-            'offset'   => 0,
-            'rows'     => 0,
-            'missing'  => 0,
-            'csv_tmp'  => self::tmp_dir() . "cjenik_{$id}.csv",
-            'xml_tmp'  => self::tmp_dir() . "cjenik_{$id}.xml",
-            'total'    => self::count_products(),
+            'id'      => $id,
+            'trigger' => $trigger,
+            'started' => time(),
+            'last_id' => 0,
+            'offset'  => 0,
+            'rows'    => 0,
+            'missing' => 0,
+            'csv_tmp' => self::tmp_dir() . "cjenik_{$id}.csv",
+            'xml_tmp' => self::tmp_dir() . "cjenik_{$id}.xml",
+            'total'   => self::count_products(),
         ];
 
         $sep = (string) SC_Settings::get('csv_separator') ?: ';';
-        $fh = fopen($state['csv_tmp'], 'w');
-        fwrite($fh, "\xEF\xBB\xBF"); // UTF-8 BOM za Excel
+        $fh  = fopen($state['csv_tmp'], 'w');
+        fwrite($fh, "\xEF\xBB\xBF");
         fputcsv($fh, self::columns(), $sep, '"', '');
         fclose($fh);
 
@@ -287,12 +192,10 @@ final class SC_Export {
 
     public static function count_products(): int {
         global $wpdb;
-        return (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='product' AND post_status='publish'"
-        );
+        return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='product' AND post_status='publish'");
     }
 
-    /** Jedan batch. Vraća ažurirano stanje; 'done' => true kad je gotovo. */
+    /** Jedan korak: najviše CHUNK proizvoda. Vraća stanje; 'done' => true kad je gotovo. */
     public static function step(): array {
         $state = self::state();
         if (!$state) {
@@ -301,70 +204,40 @@ final class SC_Export {
 
         global $wpdb;
         $ids = $wpdb->get_col($wpdb->prepare(
-            "SELECT ID FROM {$wpdb->posts} WHERE post_type='product' AND post_status='publish' ORDER BY ID ASC LIMIT %d OFFSET %d",
-            self::BATCH,
-            (int) $state['offset']
+            "SELECT ID FROM {$wpdb->posts} WHERE post_type='product' AND post_status='publish' AND ID > %d ORDER BY ID ASC LIMIT %d",
+            (int) $state['last_id'],
+            self::CHUNK
         ));
-
         if (!$ids) {
             return self::finish($state);
         }
+        $ids = array_map('intval', $ids);
 
-        $sep = (string) SC_Settings::get('csv_separator') ?: ';';
+        $settings = SC_Settings::all();
+        $rows = self::build_rows($ids, $settings);
+
+        $sep = (string) $settings['csv_separator'] ?: ';';
         $csv = fopen($state['csv_tmp'], 'a');
         $xml = fopen($state['xml_tmp'], 'a');
-        $settings = SC_Settings::all();
-
-        foreach ($ids as $id) {
-            $product = wc_get_product((int) $id);
-            if (!$product) {
-                continue;
+        foreach ($rows as $row) {
+            if ($row['sidrena_cijena'] === '' && empty($row['_izuzet'])) {
+                $state['missing']++;
             }
-            if (!$settings['ukljuci_skrivene'] && $product->get_catalog_visibility() === 'hidden') {
-                continue;
-            }
-            if (SC_Snapshot::is_excluded_from_pricelist($product)) {
-                continue;
-            }
-            $items = [];
-            if ($product->is_type('variable')) {
-                foreach ($product->get_children() as $vid) {
-                    $v = wc_get_product($vid);
-                    if ($v && $v->get_status() === 'publish') {
-                        $items[] = $v;
-                    }
-                }
-            } elseif ($product->is_type('grouped') || $product->is_type('external')) {
-                continue;
-            } else {
-                $items[] = $product;
-            }
-
-            foreach ($items as $item) {
-                if (!$settings['ukljuci_nedostupne'] && !$item->is_in_stock()) {
-                    continue;
-                }
-                $row = self::row($item, $settings);
-                if ($row['sidrena_cijena'] === '' && !SC_Snapshot::is_excluded($item)) {
-                    $state['missing']++;
-                }
-                fputcsv($csv, array_values($row), $sep, '"', '');
-                fwrite($xml, self::xml_row($row));
-                $state['rows']++;
-            }
+            unset($row['_izuzet']);
+            fputcsv($csv, array_values($row), $sep, '"', '');
+            fwrite($xml, self::xml_row($row));
+            $state['rows']++;
         }
         fclose($csv);
         fclose($xml);
 
+        $state['last_id'] = (int) end($ids);
         $state['offset'] += count($ids);
-        $state['done'] = false;
+        $state['done']    = false;
         update_option(self::STATE_OPT, $state, false);
 
-        // Oslobodi memoriju: WP runtime keš raste sa svakim učitanim proizvodom.
         if (function_exists('wp_cache_flush_runtime')) {
-            wp_cache_flush_runtime();
-        } elseif (!wp_using_ext_object_cache()) {
-            wp_cache_flush();
+            wp_cache_flush_runtime(); // ne gomilaj postove u memoriji kroz stotine koraka
         }
         return $state;
     }
@@ -375,7 +248,6 @@ final class SC_Export {
         $ts = time();
         $csv_name = self::build_filename('csv', $ts);
         $xml_name = self::build_filename('xml', $ts);
-        // Ako u istoj minuti već postoji datoteka, dodaj sufiks.
         $i = 1;
         while (file_exists(self::files_dir() . $csv_name) || file_exists(self::files_dir() . $xml_name)) {
             $csv_name = preg_replace('/(\.csv)$/', "_{$i}$1", self::build_filename('csv', $ts));
@@ -399,7 +271,6 @@ final class SC_Export {
 
         self::apply_retention();
         self::write_index();
-
         do_action('sidrena_cijena_export_done', $last);
 
         return $last + ['done' => true];
@@ -414,28 +285,43 @@ final class SC_Export {
         }
     }
 
-    /** Cijeli export u jednom prolazu (cron / WP-CLI). */
-    public static function run_full(string $trigger = 'cron'): array {
+    /**
+     * Pozadinska obrada (cron / vanjski okidač / WP-CLI): koraci po CHUNK s pauzom, pod zaključavanjem.
+     * Vraća null ako već radi druga obrada.
+     */
+    public static function run_background(string $trigger): ?array {
+        if (!self::acquire_lock($trigger)) {
+            return null;
+        }
         if (function_exists('set_time_limit')) {
             @set_time_limit(0);
         }
         ignore_user_abort(true);
-        wp_raise_memory_limit('admin');
-
-        self::abort();
-        self::start($trigger);
-        do {
-            $r = self::step();
-        } while (empty($r['done']));
-        return $r;
+        try {
+            self::abort();
+            self::start($trigger);
+            do {
+                $r = self::step();
+                if (empty($r['done'])) {
+                    usleep(self::PAUSE_US);
+                }
+            } while (empty($r['done']));
+            return $r;
+        } finally {
+            self::release_lock();
+        }
     }
 
+    /** Admin: jedan korak po AJAX zahtjevu. */
     public static function ajax_batch(): void {
         check_ajax_referer('sc_admin', 'nonce');
         if (!current_user_can('manage_woocommerce')) {
             wp_send_json_error(['message' => 'Nemate ovlasti.'], 403);
         }
         if (!empty($_POST['restart'])) {
+            if (self::lock_info()) {
+                wp_send_json_error(['message' => 'U tijeku je pozadinsko generiranje (' . self::lock_info() . '). Pričekaj da završi.']);
+            }
             self::abort();
             self::start('manual');
         }
@@ -443,100 +329,285 @@ final class SC_Export {
         wp_send_json_success($r);
     }
 
-    /* ---------- Redak ---------- */
+    /** Je li današnji cjenik već generiran (od zakazanog vremena naovamo). */
+    public static function is_due(): bool {
+        $due_ts = SC_Settings::today_run_timestamp();
+        if (time() < $due_ts) {
+            return false;
+        }
+        $last = self::last();
+        return empty($last['time']) || (int) $last['time'] < $due_ts;
+    }
+
+    /**
+     * Vanjski okidač: https://domena/?sidrena_cron=TOKEN. Odmah odgovori, generiraj u pozadini.
+     * &only_due=1: samo ako današnji cjenik ne postoji. &wait=1: sinkrono (testiranje).
+     */
+    public static function maybe_external_trigger(): void {
+        if (!isset($_GET['sidrena_cron'])) {
+            return;
+        }
+        if (SC_Settings::get('cron_nacin') === 'iskljuceno') {
+            status_header(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo wp_json_encode(['ok' => false, 'error' => 'automatic generation disabled in settings']);
+            exit;
+        }
+        if (!hash_equals(SC_Settings::cron_token(), (string) $_GET['sidrena_cron'])) {
+            status_header(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo wp_json_encode(['ok' => false, 'error' => 'invalid token']);
+            exit;
+        }
+        nocache_headers();
+        header('Content-Type: application/json; charset=utf-8');
+        if (!empty($_GET['only_due']) && !self::is_due()) {
+            echo wp_json_encode(['ok' => true, 'skipped' => 'already generated today', 'last' => self::last()]);
+            exit;
+        }
+        if (self::lock_info()) {
+            echo wp_json_encode(['ok' => false, 'error' => 'export already running', 'lock' => self::lock_info()]);
+            exit;
+        }
+        if (!empty($_GET['wait'])) {
+            $r = self::run_background('external');
+            echo wp_json_encode($r === null ? ['ok' => false, 'error' => 'export already running'] : ['ok' => true] + $r);
+            exit;
+        }
+        echo wp_json_encode(['ok' => true, 'started' => true, 'last' => self::last()]);
+        self::finish_request();
+        self::run_background('external');
+        exit;
+    }
+
+    private static function finish_request(): void {
+        ignore_user_abort(true);
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } elseif (function_exists('litespeed_finish_request')) {
+            litespeed_finish_request();
+        } else {
+            if (!headers_sent()) {
+                header('Connection: close');
+                header('Content-Length: ' . (int) ob_get_length());
+            }
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+            flush();
+        }
+    }
+
+    public static function is_stale(): bool {
+        $last = self::last();
+        return empty($last['time']) || (time() - (int) $last['time']) > 26 * HOUR_IN_SECONDS;
+    }
+
+    /* ---------- Redci: izravni SQL, bez WC_Product objekata ---------- */
 
     public static function columns(): array {
         return [
-            'naziv',
-            'sifra',
-            'marka',
-            'jedinica_mjere',
-            'cijena_za_jedinicu_mjere',
-            'maloprodajna_cijena',
-            'posebni_oblik_prodaje',
-            'naziv_posebnog_oblika_prodaje',
-            'sidrena_cijena',
-            'barkod',
-            'dostupnost',
-            'sidrena_cijena_datum',
-            'kategorija',
-            'url',
+            'naziv', 'sifra', 'marka', 'jedinica_mjere', 'cijena_za_jedinicu_mjere', 'maloprodajna_cijena',
+            'posebni_oblik_prodaje', 'naziv_posebnog_oblika_prodaje', 'sidrena_cijena', 'barkod', 'dostupnost',
+            'sidrena_cijena_datum', 'kategorija', 'url',
         ];
     }
 
-    public static function row(WC_Product $item, array $s): array {
-        $parent = $item->is_type('variation') ? wc_get_product($item->get_parent_id()) : $item;
+    private static function meta_keys(array $s): array {
+        $keys = ['_sku', '_global_unique_id', '_regular_price', '_sale_price', '_price', '_stock_status', '_tax_class', '_tax_status',
+            SC_Snapshot::META_PRICE, SC_Snapshot::META_DATE, SC_Snapshot::META_EXCL, SC_Snapshot::META_NOCJ];
+        foreach (['jedinica_meta', 'cijena_jedinica_meta'] as $k) {
+            if (!empty($s[$k])) {
+                $keys[] = $s[$k];
+            }
+        }
+        foreach (['marka_izvor', 'barkod_izvor'] as $k) {
+            if (str_starts_with((string) $s[$k], 'meta:')) {
+                $keys[] = substr($s[$k], 5);
+            }
+        }
+        return array_unique($keys);
+    }
 
-        $on_sale = $item->is_on_sale();
-        $current = self::fmt_price(wc_get_price_including_tax($item), $s);
+    /** @return array<int, array> redci za zadane ID-jeve proizvoda (uklj. varijacije) */
+    public static function build_rows(array $ids, array $s): array {
+        global $wpdb;
+        $in = implode(',', $ids);
 
-        $sidrena = SC_Snapshot::is_excluded($item) ? null : SC_Snapshot::get($item);
-        $sidrena_val = $sidrena ? self::fmt_price(wc_get_price_including_tax($item, ['price' => $sidrena['price']]), $s) : '';
+        // 1) proizvodi + varijacije
+        $posts = $wpdb->get_results(
+            "SELECT ID, post_title, post_parent, post_type, menu_order FROM {$wpdb->posts}
+             WHERE ID IN ($in)
+                OR (post_type='product_variation' AND post_status='publish' AND post_parent IN ($in))
+             ORDER BY post_parent, menu_order, ID",
+            ARRAY_A
+        );
+        $products = [];
+        $variations = [];
+        foreach ($posts as $p) {
+            if ($p['post_type'] === 'product_variation') {
+                $variations[(int) $p['post_parent']][] = $p;
+            } else {
+                $products[(int) $p['ID']] = $p;
+            }
+        }
+        $all_ids = array_merge($ids, array_map(static fn($p) => (int) $p['ID'], array_merge([], ...array_values($variations ?: [[]]))));
+        $all_in  = implode(',', array_map('intval', $all_ids));
 
-        $sku  = (string) $item->get_sku();
-        $gtin = method_exists($item, 'get_global_unique_id') ? (string) $item->get_global_unique_id() : '';
-
-        $cats = $parent ? wp_get_post_terms($parent->get_id(), 'product_cat', ['fields' => 'names']) : [];
-        if (is_wp_error($cats)) {
-            $cats = [];
+        // 2) meta u jednom upitu
+        $keys_in = "'" . implode("','", array_map('esc_sql', self::meta_keys($s))) . "'";
+        $meta = [];
+        foreach ($wpdb->get_results("SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ($all_in) AND meta_key IN ($keys_in)", ARRAY_A) as $m) {
+            $meta[(int) $m['post_id']][$m['meta_key']] = $m['meta_value'];
         }
 
-        return [
-            'naziv'                         => wp_strip_all_tags($item->get_name()),
+        // 3) taksonomije u jednom upitu: tip, kategorije, vidljivost, marka
+        $taxes = ['product_type', 'product_cat', 'product_visibility'];
+        $brand_tax = '';
+        if ($s['marka_izvor'] === 'product_brand' || str_starts_with((string) $s['marka_izvor'], 'pa_')) {
+            $brand_tax = (string) $s['marka_izvor'];
+            $taxes[] = $brand_tax;
+        }
+        $tax_in = "'" . implode("','", array_map('esc_sql', $taxes)) . "'";
+        $terms = [];
+        foreach ($wpdb->get_results(
+            "SELECT tr.object_id, tt.taxonomy, tt.term_taxonomy_id, t.name, t.slug
+             FROM {$wpdb->term_relationships} tr
+             JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
+             JOIN {$wpdb->terms} t ON t.term_id = tt.term_id
+             WHERE tr.object_id IN ($in) AND tt.taxonomy IN ($tax_in)",
+            ARRAY_A
+        ) as $t) {
+            $terms[(int) $t['object_id']][$t['taxonomy']][] = $t;
+        }
+        $excluded_cat_tt = array_flip(SC_Settings::excluded_category_term_taxonomy_ids());
+
+        // 4) permalinkovi: napuni keš jednim upitom pa koristi get_permalink
+        _prime_post_caches($ids, false, false);
+
+        $rows = [];
+        foreach ($ids as $pid) {
+            if (!isset($products[$pid])) {
+                continue;
+            }
+            $p    = $products[$pid];
+            $pm   = $meta[$pid] ?? [];
+            $type = $terms[$pid]['product_type'][0]['slug'] ?? 'simple';
+            if (in_array($type, ['grouped', 'external'], true)) {
+                continue;
+            }
+            if (($pm[SC_Snapshot::META_NOCJ] ?? '') === 'yes') {
+                continue;
+            }
+            if (!$s['ukljuci_skrivene']) {
+                foreach ($terms[$pid]['product_visibility'] ?? [] as $t) {
+                    if ($t['slug'] === 'exclude-from-catalog') {
+                        continue 2;
+                    }
+                }
+            }
+            $excluded = ($pm[SC_Snapshot::META_EXCL] ?? '') === 'yes';
+            if (!$excluded && $excluded_cat_tt) {
+                foreach ($terms[$pid]['product_cat'] ?? [] as $t) {
+                    if (isset($excluded_cat_tt[(int) $t['term_taxonomy_id']])) {
+                        $excluded = true;
+                        break;
+                    }
+                }
+            }
+            $cats  = implode(' | ', array_map(static fn($t) => $t['name'], $terms[$pid]['product_cat'] ?? []));
+            $brand = '';
+            if ($brand_tax !== '') {
+                $brand = implode(', ', array_map(static fn($t) => $t['name'], $terms[$pid][$brand_tax] ?? []));
+            } elseif (str_starts_with((string) $s['marka_izvor'], 'meta:')) {
+                $brand = (string) ($pm[substr($s['marka_izvor'], 5)] ?? '');
+            }
+            $url = get_permalink($pid);
+
+            $items = ($type === 'variable') ? ($variations[$pid] ?? []) : [$p];
+            foreach ($items as $item) {
+                $iid = (int) $item['ID'];
+                $im  = ($iid === $pid) ? $pm : (($meta[$iid] ?? []) + $pm); // varijacija nasljeđuje što nema
+                if (($im['_regular_price'] ?? '') === '' && ($im['_price'] ?? '') === '') {
+                    continue; // bez cijene (npr. nedovršena varijacija)
+                }
+                if (!$s['ukljuci_nedostupne'] && !in_array($im['_stock_status'] ?? 'instock', ['instock', 'onbackorder'], true)) {
+                    continue;
+                }
+                $ibrand = $brand;
+                if ($ibrand === '' && str_starts_with((string) $s['marka_izvor'], 'meta:')) {
+                    $ibrand = (string) ($meta[$iid][substr($s['marka_izvor'], 5)] ?? '');
+                }
+                $rows[] = self::row_from_meta($iid, (string) $item['post_title'], $im, $ibrand, $cats, $url, $excluded, $s);
+            }
+        }
+        return $rows;
+    }
+
+    private static function row_from_meta(int $id, string $name, array $m, string $brand, string $cats, string $url, bool $excluded, array $s): array {
+        $regular = ($m['_regular_price'] ?? '') !== '' ? (float) $m['_regular_price'] : null;
+        $sale    = ($m['_sale_price'] ?? '') !== '' ? (float) $m['_sale_price'] : null;
+        $price   = ($m['_price'] ?? '') !== '' ? (float) $m['_price'] : (float) $regular;
+        $on_sale = $sale !== null && $regular !== null && $sale < $regular && abs($price - $sale) < 0.00001;
+
+        $tax_class  = (string) ($m['_tax_class'] ?? '');
+        $tax_status = (string) ($m['_tax_status'] ?? 'taxable');
+
+        $sidrena_raw = $excluded ? '' : (string) ($m[SC_Snapshot::META_PRICE] ?? '');
+        $sidrena     = $sidrena_raw !== '' ? self::fmt_price(self::incl_tax((float) $sidrena_raw, $tax_class, $tax_status), $s) : '';
+
+        $sku  = (string) ($m['_sku'] ?? '');
+        $gtin = (string) ($m['_global_unique_id'] ?? '');
+        $src  = (string) $s['barkod_izvor'];
+        if (str_starts_with($src, 'meta:')) {
+            $barcode = (string) ($m[substr($src, 5)] ?? '');
+        } else {
+            $barcode = match ($src) {
+                'gtin'  => $gtin,
+                'sku'   => $sku,
+                default => $gtin !== '' ? $gtin : $sku,
+            };
+        }
+
+        $row = [
+            'naziv'                         => wp_strip_all_tags($name),
             'sifra'                         => $sku,
-            'marka'                         => self::brand($item, $parent, $s),
-            'jedinica_mjere'                => $s['jedinica_meta'] ? (string) $item->get_meta($s['jedinica_meta'], true) : '',
-            'cijena_za_jedinicu_mjere'      => $s['cijena_jedinica_meta'] ? (string) $item->get_meta($s['cijena_jedinica_meta'], true) : '',
-            'maloprodajna_cijena'           => $current,
+            'marka'                         => $brand,
+            'jedinica_mjere'                => !empty($s['jedinica_meta']) ? (string) ($m[$s['jedinica_meta']] ?? '') : '',
+            'cijena_za_jedinicu_mjere'      => !empty($s['cijena_jedinica_meta']) ? (string) ($m[$s['cijena_jedinica_meta']] ?? '') : '',
+            'maloprodajna_cijena'           => self::fmt_price(self::incl_tax($price, $tax_class, $tax_status), $s),
             'posebni_oblik_prodaje'         => $on_sale ? 'DA' : 'NE',
             'naziv_posebnog_oblika_prodaje' => $on_sale ? (string) $s['naziv_akcije'] : '',
-            'sidrena_cijena'                => $sidrena_val,
-            'barkod'                        => self::barcode($item, $sku, $gtin, $s),
-            'dostupnost'                    => $item->is_in_stock() ? 'dostupno' : 'nedostupno',
-            'sidrena_cijena_datum'          => $sidrena ? $sidrena['date'] : '',
-            'kategorija'                    => implode(' | ', $cats),
-            'url'                           => $item->get_permalink(),
+            'sidrena_cijena'                => $sidrena,
+            'barkod'                        => $barcode,
+            'dostupnost'                    => in_array($m['_stock_status'] ?? 'instock', ['instock', 'onbackorder'], true) ? 'dostupno' : 'nedostupno',
+            'sidrena_cijena_datum'          => $sidrena !== '' ? (string) ($m[SC_Snapshot::META_DATE] ?? $s['referentni_datum']) : '',
+            'kategorija'                    => $cats,
+            'url'                           => $url,
+            '_izuzet'                       => $excluded,
         ];
+        return apply_filters('sidrena_cijena_export_row', $row, $id, $m);
     }
 
-    private static function brand(WC_Product $item, ?WC_Product $parent, array $s): string {
-        $src = (string) $s['marka_izvor'];
-        if ($src === 'none' || $src === '') {
-            return '';
+    /** Cijena s PDV-om prema postavkama trgovine (osnovne stope), bez WC_Product objekta. */
+    public static function incl_tax(float $price, string $tax_class, string $tax_status): float {
+        static $rates = [];
+        if ($price <= 0 || !wc_tax_enabled() || $tax_status !== 'taxable') {
+            return $price;
         }
-        $pid = $parent ? $parent->get_id() : $item->get_id();
-        if ($src === 'product_brand') {
-            $t = taxonomy_exists('product_brand') ? wp_get_post_terms($pid, 'product_brand', ['fields' => 'names']) : [];
-            return is_wp_error($t) ? '' : implode(', ', $t);
+        if (wc_prices_include_tax()) {
+            return $price;
         }
-        if (str_starts_with($src, 'meta:')) {
-            $k = substr($src, 5);
-            $v = (string) $item->get_meta($k, true);
-            if ($v === '' && $parent) {
-                $v = (string) $parent->get_meta($k, true);
-            }
-            return $v;
+        if (!isset($rates[$tax_class])) {
+            $rates[$tax_class] = WC_Tax::get_base_tax_rates($tax_class);
         }
-        if (str_starts_with($src, 'pa_')) {
-            $v = $item->get_attribute($src);
-            if ($v === '' && $parent) {
-                $v = $parent->get_attribute($src);
-            }
-            return (string) $v;
+        if (!$rates[$tax_class]) {
+            return $price;
         }
-        return '';
-    }
-
-    private static function barcode(WC_Product $item, string $sku, string $gtin, array $s): string {
-        $src = (string) $s['barkod_izvor'];
-        if (str_starts_with($src, 'meta:')) {
-            return (string) $item->get_meta(substr($src, 5), true);
-        }
-        return match ($src) {
-            'gtin'    => $gtin,
-            'sku'     => $sku,
-            default   => $gtin !== '' ? $gtin : $sku, // gtin_sku
-        };
+        return $price + array_sum(WC_Tax::calc_tax($price, $rates[$tax_class], false));
     }
 
     private static function fmt_price(float $v, array $s): string {
@@ -561,7 +632,6 @@ final class SC_Export {
 
     /* ---------- Datoteke, retencija, index ---------- */
 
-    /** @return array<int, array{name:string,ext:string,size:int,mtime:int,url:string}> najnovije prvo */
     public static function list_files(): array {
         $dir = self::files_dir();
         if (!is_dir($dir)) {
@@ -572,7 +642,7 @@ final class SC_Export {
             if (!preg_match('/\.(csv|xml)$/i', $f)) {
                 continue;
             }
-            $path = $dir . $f;
+            $path  = $dir . $f;
             $out[] = [
                 'name'  => $f,
                 'ext'   => strtolower(pathinfo($f, PATHINFO_EXTENSION)),
@@ -585,8 +655,40 @@ final class SC_Export {
         return $out;
     }
 
+    public static function delete_file(string $name): bool {
+        $name = basename($name);
+        $ok = false;
+        foreach (self::list_files() as $f) {
+            if ($f['name'] === $name) {
+                $ok = @unlink(self::files_dir() . $name);
+                break;
+            }
+        }
+        if ($ok) {
+            $last = self::last();
+            if (($last['csv'] ?? '') === $name || ($last['xml'] ?? '') === $name) {
+                $files = self::list_files();
+                $csv = $xml = null;
+                foreach ($files as $f) {
+                    if ($f['ext'] === 'csv' && !$csv) { $csv = $f; }
+                    if ($f['ext'] === 'xml' && !$xml) { $xml = $f; }
+                }
+                if ($csv || $xml) {
+                    $last['csv']  = $csv['name'] ?? '';
+                    $last['xml']  = $xml['name'] ?? '';
+                    $last['time'] = max($csv['mtime'] ?? 0, $xml['mtime'] ?? 0);
+                    update_option(self::LAST_OPT, $last, false);
+                } else {
+                    delete_option(self::LAST_OPT);
+                }
+            }
+            self::write_index();
+        }
+        return $ok;
+    }
+
     public static function apply_retention(): void {
-        $days = max(31, (int) SC_Settings::get('retencija_dana'));
+        $days   = max(31, (int) SC_Settings::get('retencija_dana'));
         $cutoff = time() - $days * DAY_IN_SECONDS;
         foreach (self::list_files() as $f) {
             if ($f['mtime'] < $cutoff) {
@@ -607,11 +709,11 @@ final class SC_Export {
                 'xml' => !empty($last['xml']) ? self::files_url() . rawurlencode($last['xml']) : null,
             ],
             'datoteke'         => array_map(static fn($f) => [
-                'naziv'   => $f['name'],
-                'format'  => $f['ext'],
-                'velicina'=> $f['size'],
-                'datum'   => wp_date('c', $f['mtime']),
-                'url'     => $f['url'],
+                'naziv'    => $f['name'],
+                'format'   => $f['ext'],
+                'velicina' => $f['size'],
+                'datum'    => wp_date('c', $f['mtime']),
+                'url'      => $f['url'],
             ], $files),
         ];
         file_put_contents(self::files_dir() . 'index.json', wp_json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));

@@ -21,7 +21,7 @@ Službeni tekstovi odluka: [NN 101/2026, 1212](https://narodne-novine.nn.hr/clan
 - Višejezične oznake (Polylang, WPML, TranslatePress, `?lang=`).
 - Izuzimanje pojedinih proizvoda ili kategorija (npr. preorder).
 - Dnevni cjenik u batchevima (testirano na 24.000 proizvoda), javna stranica `/cjenik/`, stabilni linkovi, JSON indeks, retencija.
-- Tri mehanizma pokretanja: vanjski cron okidač s tokenom, WP-Cron i rezerva pri prvom zahtjevu.
+- Ručno generiranje ili dnevni cron u zadano vrijeme (WP-Cron ili URL okidač za hosting cron).
 
 ## Zahtjevi
 

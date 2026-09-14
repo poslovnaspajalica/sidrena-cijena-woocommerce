@@ -67,7 +67,7 @@ final class SC_Admin {
         if (!$screen || !in_array($screen->id, ['edit-product', 'woocommerce_page_' . self::PAGE, 'dashboard'], true)) {
             return;
         }
-        if (SC_Export::is_stale() && SC_Export::last()) {
+        if (SC_Settings::get('cron_nacin') === 'wpcron' && SC_Export::is_stale() && SC_Export::last()) {
             printf(
                 '<div class="notice notice-error"><p><strong>Sidrena cijena:</strong> zadnji cjenik generiran je %s, dakle prije više od 24 sata. Provjeri vanjski cron okidač. <a href="%s">Detalji</a></p></div>',
                 esc_html(wp_date('d.m.Y. H:i', (int) SC_Export::last()['time'])),
@@ -146,7 +146,7 @@ final class SC_Admin {
             <p>Kopira <strong>redovnu cijenu</strong> (bez akcije) svakog proizvoda i varijacije u polje sidrene cijene. Pokreni <strong>odmah</strong>, dok su cijene još one koje su vrijedile na referentni dan. Proizvodi koji već imaju sidrenu cijenu se preskaču, osim ako označiš prepisivanje.</p>
             <p><label><input type="checkbox" id="sc-overwrite"> Prepiši i postojeće sidrene cijene (oprez: briše ručne unose)</label></p>
             <p><button class="button button-primary" id="sc-snapshot-btn">Zabilježi sidrene cijene</button>
-            <span class="description">Obrada ide u koracima po 1000 proizvoda s prikazom napretka. Ako se prekine, ponovni klik nastavlja jer se već zabilježeni preskaču.</span></p>
+            <span class="description">Koraci po 100 proizvoda, skupni SQL upisi, prikaz napretka. Ako se prekine, ponovni klik nastavlja jer se već zabilježeni preskaču.</span></p>
             <div class="sc-progress" id="sc-snapshot-progress" hidden><span></span></div>
             <p id="sc-snapshot-log"></p>
         </div>
@@ -160,9 +160,12 @@ final class SC_Admin {
             <?php else : ?>
                 <p class="sc-warn">Cjenik još nije generiran.</p>
             <?php endif; ?>
-            <p>Automatsko generiranje (WP-Cron): svaki dan u <strong><?php echo esc_html($s['cron_vrijeme']); ?></strong>
-            <?php echo $next ? '(sljedeće: ' . esc_html(wp_date('d.m.Y. H:i', $next)) . ')' : '<span class="sc-warn">(cron nije zakazan, spremi postavke)</span>'; ?>.
-            Datoteke se čuvaju <?php echo (int) $s['retencija_dana']; ?> dana.</p>
+            <p>Automatsko generiranje: <?php if ($s['cron_nacin'] === 'wpcron') : ?>svaki dan u <strong><?php echo esc_html($s['cron_vrijeme']); ?></strong>
+                <?php echo $next ? '(sljedeće: ' . esc_html(wp_date('d.m.Y. H:i', $next)) . ')' : '<span class="sc-warn">(nije zakazano, spremi postavke)</span>'; ?><?php else : ?><strong>isključeno</strong>, cjenik se generira samo ručno<?php endif; ?>.
+                Datoteke se čuvaju <?php echo (int) $s['retencija_dana']; ?> dana. <a href="<?php echo esc_url(self::url('postavke')); ?>">Postavke</a></p>
+            <?php if ($lock = SC_Export::lock_info()) : ?>
+                <p class="sc-warn">U tijeku je pozadinsko generiranje (<?php echo esc_html($lock); ?>).</p>
+            <?php endif; ?>
             <?php $ex = SC_Export::state(); ?>
             <?php if ($ex) : ?>
                 <p class="sc-warn">Postoji nedovršeno generiranje (započeto <?php echo esc_html(wp_date('d.m.Y. H:i', (int) $ex['started'])); ?>, obrađeno <?php echo (int) $ex['offset']; ?> / <?php echo (int) $ex['total']; ?> proizvoda, pokrenuo: <?php echo esc_html($ex['trigger']); ?>).</p>
@@ -172,27 +175,22 @@ final class SC_Admin {
                 <p><button class="button button-primary" id="sc-export-btn">Generiraj cjenik sada</button>
             <?php endif; ?>
             <a class="button" href="<?php echo esc_url(SC_Public::url()); ?>" target="_blank">Otvori javnu stranicu cjenika</a>
-            <span class="description">Koraci po 250 proizvoda s prikazom napretka; stranica mora ostati otvorena do kraja.</span></p>
+            <span class="description">Koraci po 100 proizvoda s prikazom napretka; stranica mora ostati otvorena do kraja.</span></p>
             <div class="sc-progress" id="sc-export-progress" hidden><span></span></div>
             <p id="sc-export-log"></p>
             <p><small>Javni linkovi: <code><?php echo esc_html(SC_Public::url()); ?></code> · <code><?php echo esc_html(SC_Public::url('latest.csv')); ?></code> · <code><?php echo esc_html(SC_Public::url('latest.xml')); ?></code> · <code><?php echo esc_html(SC_Public::url('index.json')); ?></code></small></p>
         </div>
 
+        <?php if ($s['cron_nacin'] === 'wpcron') : ?>
         <div class="sc-card">
-            <h2>3. Pouzdano dnevno generiranje bez posjeta kupca</h2>
+            <h2>3. Cron na hostingu (neobavezno)</h2>
             <?php $trigger = add_query_arg('sidrena_cron', SC_Settings::cron_token(), home_url('/')); ?>
-            <p>Plugin ima tri mehanizma, redom:</p>
-            <ol>
-                <li><strong>Vanjski okidač (preporučeno):</strong> na serveru (cPanel/Plesk „Cron Jobs“) ili na besplatnom servisu poput cron-job.org zakaži svaki dan u <?php echo esc_html($s['cron_vrijeme']); ?> poziv adrese:<br>
-                    <code style="user-select:all"><?php echo esc_html($trigger); ?></code><br>
-                    Primjer za cPanel/Linux cron (svaki dan u <?php echo esc_html($s['cron_vrijeme']); ?>):<br>
-                    <code style="user-select:all"><?php list($h, $m) = explode(':', $s['cron_vrijeme']); echo esc_html(sprintf('%d %d * * * curl -s "%s" > /dev/null', (int) $m, (int) $h, $trigger)); ?></code><br>
-                    <small>Radi neovisno o WP-Cronu i posjetima. Dodaj <code>&amp;only_due=1</code> ako ga zoveš češće (npr. svakih 15 min), tada generira samo ako današnji cjenik još ne postoji.</small></li>
-                <li><strong>WP-Cron:</strong> zakazan za <?php echo esc_html($s['cron_vrijeme']); ?>, pokreće ga prvi posjet nakon tog vremena.</li>
-                <li><strong>Rezerva:</strong> ako je vrijeme prošlo, a današnji cjenik ne postoji, generira se u pozadini na kraju prvog sljedećeg zahtjeva, i kad WP-Cron loopback ne radi (neki hostinzi ga blokiraju).</li>
-            </ol>
-            <p><small>Alternativa za WP-CLI: <code>wp sidrena export</code>. <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=sc_regen_token'), 'sc_regen_token')); ?>" onclick="return confirm('Stari URL okidača prestaje raditi. Nastaviti?')">Generiraj novi token</a> ako je URL procurio.</small></p>
+            <p>WP-Cron pokreće zakazano generiranje tek s prvim zahtjevom nakon <?php echo esc_html($s['cron_vrijeme']); ?>. Ako hosting ima cron (cPanel/Plesk „Cron Jobs“), pouzdanije je zakazati poziv ove adrese u <?php echo esc_html($s['cron_vrijeme']); ?>:</p>
+            <p><code style="user-select:all"><?php echo esc_html($trigger); ?></code></p>
+            <p><code style="user-select:all"><?php list($h, $m) = explode(':', $s['cron_vrijeme']); echo esc_html(sprintf('%d %d * * * curl -s "%s" > /dev/null', (int) $m, (int) $h, $trigger)); ?></code></p>
+            <p><small>Poziv odmah vraća odgovor, a generiranje ide u pozadini u koracima po 100 proizvoda. Nikad ne rade dvije obrade istovremeno. <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=sc_regen_token'), 'sc_regen_token')); ?>" onclick="return confirm('Stari URL prestaje raditi. Nastaviti?')">Novi token</a></small></p>
         </div>
+        <?php endif; ?>
         <?php
     }
 
@@ -314,7 +312,10 @@ final class SC_Admin {
                 <h2>Cjenik: objava i raspored</h2>
                 <table class="form-table">
                     <tr><th><label>Javna adresa cjenika</label></th><td><?php echo esc_html(home_url('/')); ?><input type="text" name="javni_slug" value="<?php echo esc_attr($s['javni_slug']); ?>">/</td></tr>
-                    <tr><th><label>Vrijeme dnevnog generiranja</label></th><td><input type="time" name="cron_vrijeme" value="<?php echo esc_attr($s['cron_vrijeme']); ?>"> <span class="description">Odluka: cjenik ažuriran najkasnije do 8:00 za tekući dan</span></td></tr>
+                    <tr><th>Automatsko generiranje cjenika</th>
+                        <td><label><input type="radio" name="cron_nacin" value="rucno" <?php checked($s['cron_nacin'], 'rucno'); ?>> Isključeno, generiram ručno</label><br>
+                            <label><input type="radio" name="cron_nacin" value="wpcron" <?php checked($s['cron_nacin'], 'wpcron'); ?>> Svaki dan u <input type="time" name="cron_vrijeme" value="<?php echo esc_attr($s['cron_vrijeme']); ?>"></label>
+                            <p class="description">Odluka traži cjenik ažuriran najkasnije do 8:00 za tekući dan. Generiranje ide u koracima po 100 proizvoda s pauzama, u pozadini, i nikad ne radi dvije obrade istovremeno.</p></td></tr>
                     <tr><th><label>Čuvanje datoteka (dana)</label></th><td><input type="number" min="31" name="retencija_dana" value="<?php echo (int) $s['retencija_dana']; ?>"> <span class="description">Odluka: najmanje 30 dana od objave</span></td></tr>
                 </table>
             </div>
@@ -433,6 +434,7 @@ final class SC_Admin {
             'csv_separator'        => ($p['csv_separator'] ?? ';') === ',' ? ',' : ';',
             'decimalni_znak'       => ($p['decimalni_znak'] ?? '.') === ',' ? ',' : '.',
             'javni_slug'           => sanitize_title($p['javni_slug'] ?? 'cjenik') ?: 'cjenik',
+            'cron_nacin'           => ($p['cron_nacin'] ?? 'rucno') === 'wpcron' ? 'wpcron' : 'rucno',
             'cron_vrijeme'         => preg_match('/^\d{2}:\d{2}$/', (string) ($p['cron_vrijeme'] ?? '')) ? $p['cron_vrijeme'] : '04:00',
             'retencija_dana'       => max(31, (int) ($p['retencija_dana'] ?? 35)),
         ]);
