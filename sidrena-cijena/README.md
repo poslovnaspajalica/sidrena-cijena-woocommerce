@@ -24,8 +24,10 @@ Pravni temelj: Zakon o iznimnim mjerama kontrole cijena (NN 40/2025), čl. 6, 8,
    Ako su cijene već mijenjane, koristi karticu *Uvoz / izvoz*: preuzmi radni CSV, upiši točne sidrene
    cijene iz vlastite evidencije i uvezi.
 3. **Status → Generiraj cjenik sada**: prvi cjenik. Dalje se generira automatski svaki dan u 04:00.
-   Plugin pri aktivaciji sam zabilježi sidrene cijene (minutu nakon aktivacije, u pozadini), ali cjenik
-   ne generira sam dok ga prvi put ne pokreneš ili dok ne dođe zakazano vrijeme.
+
+Aktivacija plugina ne pokreće ništa. Snapshot i prvi cjenik su ručne akcije s prikazom napretka; obje se
+mogu prekinuti i nastaviti. Snapshot koristi skupne SQL upise (25.000 proizvoda: oko 12 s), cjenik ide u
+koracima po 250 proizvoda (25.000 proizvoda: oko 40 s lokalno, na dijeljenom hostingu nekoliko minuta).
 4. Provjeri javnu stranicu `https://tvoja-domena.hr/cjenik/`.
 
 ## Prekidač prikaza

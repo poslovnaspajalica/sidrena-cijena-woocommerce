@@ -74,7 +74,10 @@ final class SC_Admin {
                 esc_url(self::url('status'))
             );
         }
-        $st = SC_Snapshot::stats();
+        $st = get_transient('sc_stats');
+        if (!is_array($st)) {
+            return; // ne računaj težak upit na svakoj admin stranici; Status kartica ga osvježava
+        }
         if ($st['without'] > 0) {
             printf(
                 '<div class="notice notice-warning"><p><strong>Sidrena cijena:</strong> %d proizvoda/varijacija nema zabilježenu sidrenu cijenu. <a href="%s">Zabilježi sidrene cijene</a></p></div>',
@@ -109,7 +112,7 @@ final class SC_Admin {
     }
 
     private static function tab_status(): void {
-        $st   = SC_Snapshot::stats();
+        $st   = SC_Snapshot::stats(!empty($_GET['sc_fresh']));
         $last = SC_Export::last();
         $next = wp_next_scheduled(SC_Export::CRON_HOOK);
         $s    = SC_Settings::all();
@@ -120,6 +123,7 @@ final class SC_Admin {
             <div class="sc-stat"><b class="sc-ok"><?php echo (int) $st['with']; ?></b>sa sidrenom cijenom</div>
             <div class="sc-stat"><b class="<?php echo $st['without'] ? 'sc-warn' : 'sc-ok'; ?>"><?php echo (int) $st['without']; ?></b>bez sidrene cijene</div>
             <div class="sc-stat"><b><?php echo (int) $st['excluded']; ?></b>izuzeto na proizvodu</div>
+            <p class="description">Brojke iz keša (<?php echo esc_html(wp_date('H:i', (int) ($st['time'] ?? time()))); ?>). <a href="<?php echo esc_url(self::url('status', ['sc_fresh' => 1])); ?>">Osvježi</a></p>
             <p>Referentni datum: <strong><?php echo esc_html(SC_Settings::format_date($s['referentni_datum'])); ?></strong>
             <?php if (!empty($s['alt_kategorije'])) : ?> (kategorije NN 75/2025: <?php echo esc_html(SC_Settings::format_date($s['alt_datum'])); ?>)<?php endif; ?>
             · Obveza isticanja i objave cjenika vrijedi od <strong>1. 10. 2026.</strong></p>
@@ -141,10 +145,8 @@ final class SC_Admin {
             <h2>1. Zabilježi sidrene cijene</h2>
             <p>Kopira <strong>redovnu cijenu</strong> (bez akcije) svakog proizvoda i varijacije u polje sidrene cijene. Pokreni <strong>odmah</strong>, dok su cijene još one koje su vrijedile na referentni dan. Proizvodi koji već imaju sidrenu cijenu se preskaču, osim ako označiš prepisivanje.</p>
             <p><label><input type="checkbox" id="sc-overwrite"> Prepiši i postojeće sidrene cijene (oprez: briše ručne unose)</label></p>
-            <?php if ($init = wp_next_scheduled(SC_Export::INITIAL_HOOK)) : ?>
-                <p class="sc-warn">Automatski snapshot sidrenih cijena zakazan je za <?php echo esc_html(wp_date('d.m.Y. H:i', $init)); ?> (pokreće ga prvi zahtjev nakon tog vremena; samo kopira redovne cijene, ne generira cjenik). Možeš i odmah ručno:</p>
-            <?php endif; ?>
-            <p><button class="button button-primary" id="sc-snapshot-btn">Zabilježi sidrene cijene</button></p>
+            <p><button class="button button-primary" id="sc-snapshot-btn">Zabilježi sidrene cijene</button>
+            <span class="description">Obrada ide u koracima po 1000 proizvoda s prikazom napretka. Ako se prekine, ponovni klik nastavlja jer se već zabilježeni preskaču.</span></p>
             <div class="sc-progress" id="sc-snapshot-progress" hidden><span></span></div>
             <p id="sc-snapshot-log"></p>
         </div>
@@ -161,8 +163,16 @@ final class SC_Admin {
             <p>Automatsko generiranje (WP-Cron): svaki dan u <strong><?php echo esc_html($s['cron_vrijeme']); ?></strong>
             <?php echo $next ? '(sljedeće: ' . esc_html(wp_date('d.m.Y. H:i', $next)) . ')' : '<span class="sc-warn">(cron nije zakazan, spremi postavke)</span>'; ?>.
             Datoteke se čuvaju <?php echo (int) $s['retencija_dana']; ?> dana.</p>
-            <p><button class="button button-primary" id="sc-export-btn">Generiraj cjenik sada</button>
-            <a class="button" href="<?php echo esc_url(SC_Public::url()); ?>" target="_blank">Otvori javnu stranicu cjenika</a></p>
+            <?php $ex = SC_Export::state(); ?>
+            <?php if ($ex) : ?>
+                <p class="sc-warn">Postoji nedovršeno generiranje (započeto <?php echo esc_html(wp_date('d.m.Y. H:i', (int) $ex['started'])); ?>, obrađeno <?php echo (int) $ex['offset']; ?> / <?php echo (int) $ex['total']; ?> proizvoda, pokrenuo: <?php echo esc_html($ex['trigger']); ?>).</p>
+                <p><button class="button button-primary" id="sc-export-resume-btn">Nastavi generiranje</button>
+                <button class="button" id="sc-export-btn">Počni ispočetka</button>
+            <?php else : ?>
+                <p><button class="button button-primary" id="sc-export-btn">Generiraj cjenik sada</button>
+            <?php endif; ?>
+            <a class="button" href="<?php echo esc_url(SC_Public::url()); ?>" target="_blank">Otvori javnu stranicu cjenika</a>
+            <span class="description">Koraci po 250 proizvoda s prikazom napretka; stranica mora ostati otvorena do kraja.</span></p>
             <div class="sc-progress" id="sc-export-progress" hidden><span></span></div>
             <p id="sc-export-log"></p>
             <p><small>Javni linkovi: <code><?php echo esc_html(SC_Public::url()); ?></code> · <code><?php echo esc_html(SC_Public::url('latest.csv')); ?></code> · <code><?php echo esc_html(SC_Public::url('latest.xml')); ?></code> · <code><?php echo esc_html(SC_Public::url('index.json')); ?></code></small></p>

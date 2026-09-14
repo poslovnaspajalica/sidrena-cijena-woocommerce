@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sidrena cijena za WooCommerce
  * Description: Isticanje sidrene (dodatne) cijene uz aktualnu cijenu i objava strojno čitljivog cjenika (.csv/.xml) prema Odlukama Vlade RH (NN 101/2026) i Zakonu o iznimnim mjerama kontrole cijena (NN 40/2025).
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: Poslovna spajalica
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('SC_VERSION', '1.0.2');
+define('SC_VERSION', '1.0.3');
 define('SC_FILE', __FILE__);
 define('SC_DIR', plugin_dir_path(__FILE__));
 define('SC_URL', plugin_dir_url(__FILE__));
@@ -53,6 +53,8 @@ final class Sidrena_Cijena_Plugin {
             return;
         }
 
+        self::maybe_upgrade();
+
         SC_Snapshot::init();
         SC_Display::init();
         SC_Export::init();
@@ -66,16 +68,24 @@ final class Sidrena_Cijena_Plugin {
         }
     }
 
+    /** Jednokratne radnje pri promjeni verzije. */
+    private static function maybe_upgrade(): void {
+        if (get_option('sidrena_cijena_version') === SC_VERSION) {
+            return;
+        }
+        // < 1.0.3: automatski zadatak nakon aktivacije više ne postoji; poništi zaostali.
+        wp_clear_scheduled_hook('sidrena_cijena_initial');
+        delete_transient('sc_stats');
+        update_option('sidrena_cijena_version', SC_VERSION, false);
+    }
+
     public static function activate(): void {
         if (!get_option(SC_Settings::OPTION)) {
             update_option(SC_Settings::OPTION, SC_Settings::defaults(), false);
         }
         SC_Export::ensure_dirs();
         SC_Export::schedule_cron();
-        // Snapshot sidrenih cijena (samo prazna polja) minutu nakon aktivacije. Cjenik se ne generira automatski.
-        if (!wp_next_scheduled(SC_Export::INITIAL_HOOK)) {
-            wp_schedule_single_event(time() + MINUTE_IN_SECONDS, SC_Export::INITIAL_HOOK);
-        }
+        // Ništa se ne pokreće automatski: snapshot sidrenih cijena i prvi cjenik su ručne akcije u adminu.
         SC_Public::register_rewrites();
         flush_rewrite_rules();
     }

@@ -81,12 +81,14 @@ final class SC_Snapshot {
         update_post_meta($product_id, self::META_PRICE, wc_format_decimal($price));
         update_post_meta($product_id, self::META_DATE, $date);
         update_post_meta($product_id, self::META_SRC, $source);
+        delete_transient('sc_stats');
     }
 
     public static function clear(int $product_id): void {
         delete_post_meta($product_id, self::META_PRICE);
         delete_post_meta($product_id, self::META_DATE);
         delete_post_meta($product_id, self::META_SRC);
+        delete_transient('sc_stats');
     }
 
     /** Referentni datum za proizvod (uzima u obzir kategorije s datumom 2. 5. 2025.). */
@@ -177,19 +179,42 @@ final class SC_Snapshot {
 
         $written = 0;
         $skipped = 0;
+        $values  = [];
+        $touched = [];
         foreach ($regular as $row) {
             $pid = (int) $row['post_id'];
             if (isset($existing[$pid])) {
                 $skipped++;
                 continue;
             }
-            $date = isset($alt_ids[$pid]) ? $alt_date : $ref_date;
-            self::set($pid, (string) $row['meta_value'], $date, 'snapshot');
+            $date  = isset($alt_ids[$pid]) ? $alt_date : $ref_date;
+            $price = wc_format_decimal((string) $row['meta_value']);
+            $values[] = $wpdb->prepare('(%d,%s,%s)', $pid, self::META_PRICE, $price);
+            $values[] = $wpdb->prepare('(%d,%s,%s)', $pid, self::META_DATE, $date);
+            $values[] = $wpdb->prepare('(%d,%s,%s)', $pid, self::META_SRC, 'snapshot');
+            $touched[] = $pid;
             $written++;
         }
 
+        if ($touched) {
+            $tin = implode(',', $touched);
+            // Skupni upis (3 reda po proizvodu) umjesto 3× update_post_meta: ~100× manje upita.
+            $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE post_id IN ($tin) AND meta_key IN ('" . self::META_PRICE . "','" . self::META_DATE . "','" . self::META_SRC . "')");
+            foreach (array_chunk($values, 1500) as $chunk) {
+                $wpdb->query("INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value) VALUES " . implode(',', $chunk));
+            }
+            foreach ($touched as $pid) {
+                wp_cache_delete($pid, 'post_meta');
+            }
+        }
+
+        $done = count($ids) < $limit;
+        if ($done) {
+            delete_transient('sc_stats');
+        }
+
         return [
-            'done'    => count($ids) < $limit,
+            'done'    => $done,
             'last_id' => (int) end($ids),
             'written' => $written,
             'skipped' => $skipped,
@@ -220,6 +245,7 @@ final class SC_Snapshot {
         $r = self::run_batch($last_id, 1000, $overwrite);
         if ($r['done']) {
             wp_cache_flush();
+            $r['stats'] = self::stats(true);
         }
         wp_send_json_success($r);
     }
@@ -249,8 +275,23 @@ final class SC_Snapshot {
         self::set($product_id, (string) $regular, $created_ymd, 'novi');
     }
 
-    /** Statistika za admin (izuzeti proizvodi se ne broje). */
-    public static function stats(): array {
+    /**
+     * Statistika za admin (izuzeti proizvodi se ne broje). Keširano 15 min jer je upit težak na velikim katalozima.
+     */
+    public static function stats(bool $fresh = false): array {
+        if (!$fresh) {
+            $cached = get_transient('sc_stats');
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+        $r = self::compute_stats();
+        $r['time'] = time();
+        set_transient('sc_stats', $r, 15 * MINUTE_IN_SECONDS);
+        return $r;
+    }
+
+    private static function compute_stats(): array {
         global $wpdb;
         $cat_tt = SC_Settings::excluded_category_term_taxonomy_ids();
         $cat_sql = '';

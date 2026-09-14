@@ -48,16 +48,21 @@
             nextFn: function (d) { return { last_id: d.last_id, overwrite: overwrite }; },
             progressFn: function (d) { totals.written += d.written; totals.skipped += d.skipped; return d.done ? 100 : 50; },
             logFn: function (d) { return 'Obrađeno do ID ' + d.last_id + ' · zabilježeno: ' + totals.written + ' · preskočeno: ' + totals.skipped; },
-            doneFn: function () { return '<span style="color:#00a32a">Gotovo.</span> Zabilježeno: ' + totals.written + ', preskočeno (već postoji): ' + totals.skipped + '. <a href="">Osvježi stranicu</a>'; }
+            doneFn: function (d) { var st = d.stats ? ' Sa sidrenom cijenom: ' + d.stats.with + ', bez: ' + d.stats.without + '.' : ''; return '<span style="color:#00a32a">Gotovo.</span> Zabilježeno: ' + totals.written + ', preskočeno (već postoji): ' + totals.skipped + '.' + st + ' <a href="">Osvježi stranicu</a>'; }
         });
     });
 
-    $('#sc-export-btn').on('click', function (e) {
+    $('#sc-export-btn, #sc-export-resume-btn').on('click', function (e) {
         e.preventDefault();
+        var resume = this.id === 'sc-export-resume-btn';
+        if (!resume && $('#sc-export-resume-btn').length && !confirm('Nedovršeno generiranje bit će odbačeno i počinje se ispočetka. Nastaviti?')) {
+            return;
+        }
+        $('#sc-export-btn, #sc-export-resume-btn').prop('disabled', true);
         runBatches({
             button: this, progress: '#sc-export-progress', log: '#sc-export-log',
             action: 'sc_export_batch',
-            first: { restart: 1 },
+            first: resume ? {} : { restart: 1 },
             nextFn: function () { return {}; },
             progressFn: function (d) { return d.total ? Math.round(100 * d.offset / d.total) : 100; },
             logFn: function (d) { return 'Obrađeno ' + d.offset + ' / ' + d.total + ' proizvoda · redaka: ' + d.rows; },

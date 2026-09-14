@@ -11,11 +11,10 @@ final class SC_Export {
     public const INITIAL_HOOK = 'sidrena_cijena_initial';
     public const STATE_OPT   = 'sidrena_cijena_export_state';
     public const LAST_OPT    = 'sidrena_cijena_last_export';
-    public const BATCH       = 500;
+    public const BATCH       = 250;
 
     public static function init(): void {
         add_action(self::CRON_HOOK, [__CLASS__, 'cron']);
-        add_action(self::INITIAL_HOOK, [__CLASS__, 'initial']);
         add_action('wp_loaded', [__CLASS__, 'maybe_external_trigger']);
         add_action('shutdown', [__CLASS__, 'maybe_catch_up'], 999);
         add_action('wp_ajax_sc_export_batch', [__CLASS__, 'ajax_batch']);
@@ -189,14 +188,6 @@ final class SC_Export {
         self::finish_request();
         SC_Snapshot::run_full(false);
         self::run_if_free('catch-up');
-    }
-
-    /** Nakon aktivacije: samo zabilježi sidrene cijene gdje nedostaju (brzo, SQL). Cjenik se ne generira automatski. */
-    public static function initial(): void {
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(0);
-        }
-        SC_Snapshot::run_full(false);
     }
 
     /** Obriši objavljenu datoteku cjenika (admin). */
