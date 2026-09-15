@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<ruleset name="Sidrena cijena">
+	<description>WordPress Coding Standards za plugin Sidrena cijena.</description>
+
+	<file>.</file>
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<config name="minimum_wp_version" value="6.5"/>
+	<config name="testVersion" value="8.1-"/>
+
+	<rule ref="WordPress">
+		<!-- Moderni PHP: kratka sintaksa nizova i kratki ternarni operator su namjerni. -->
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+		<exclude name="Universal.Operators.DisallowShortTernary"/>
+		<!-- Yoda uvjeti nisu obvezni izvan WordPress jezgre. -->
+		<exclude name="WordPress.PHP.YodaConditions"/>
+		<!-- Hrvatski komentari; potpuni docblock-ovi (WordPress-Docs) nisu obvezni za ovaj plugin. -->
+		<exclude name="Squiz.Commenting.InlineComment.InvalidEndChar"/>
+		<exclude name="WordPress-Docs"/>
+		<!-- Skupne SQL operacije nad postmeta su namjerne (obrada 25.000+ proizvoda u koracima); svi upiti su pripremljeni. -->
+		<exclude name="WordPress.DB.DirectDatabaseQuery"/>
+		<!-- Cjenik se zapisuje strujanjem u velike datoteke; WP_Filesystem ne podržava dodavanje na kraj datoteke. -->
+		<exclude name="WordPress.WP.AlternativeFunctions.file_system_operations_fopen"/>
+		<exclude name="WordPress.WP.AlternativeFunctions.file_system_operations_fwrite"/>
+		<exclude name="WordPress.WP.AlternativeFunctions.file_system_operations_fclose"/>
+		<exclude name="WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents"/>
+		<exclude name="WordPress.WP.AlternativeFunctions.file_system_operations_readfile"/>
+		<exclude name="WordPress.WP.AlternativeFunctions.rename_rename"/>
+	</rule>
+
+	<!-- Glavna datoteka plugina nosi naziv plugina, ne klase. -->
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>*/sidrena-cijena.php</exclude-pattern>
+	</rule>
+
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="manage_woocommerce"/>
+			</property>
+		</properties>
+	</rule>
+	<rule ref="PHPCompatibilityWP"/>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="sidrena-cijena"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

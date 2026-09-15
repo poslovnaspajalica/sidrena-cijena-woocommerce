@@ -126,6 +126,17 @@ prikazuje redovnu, akcijsku, najnižu u 30 dana i sidrenu cijenu.
   sadržavati sidrenu cijenu, pa feed treba dopuniti stupcem iz `_sidrena_cijena`.
 - Multi-currency pluginovi: sidrena se prikazuje u osnovnoj valuti.
 
+## Kvaliteta koda
+Kod prolazi PHP_CodeSniffer sa standardom **WordPress** (Core + Extra) i **PHPCompatibilityWP** za PHP 8.1+
+bez grešaka i upozorenja. Konfiguracija je u `phpcs.xml.dist`; dokumentirane iznimke: bez obveznih docblock-ova
+(WordPress-Docs), dopušteni izravni skupni SQL upiti nad postmeta (svi pripremljeni kroz `$wpdb->prepare`) i
+strujanje velikih datoteka standardnim PHP funkcijama. Pokretanje:
+
+```
+composer global require squizlabs/php_codesniffer wp-coding-standards/wpcs phpcompatibility/phpcompatibility-wp
+phpcs
+```
+
 ## Izvori
 - NN 101/2026, 1212: https://narodne-novine.nn.hr/clanci/sluzbeni/full/2026_09_101_1212.html
 - NN 101/2026, 1213: https://narodne-novine.nn.hr/clanci/sluzbeni/full/2026_09_101_1213.html
