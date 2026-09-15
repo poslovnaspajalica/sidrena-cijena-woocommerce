@@ -300,7 +300,7 @@ final class SCP_Admin {
 						<td><input type="text" name="p[<?php echo (int) $i; ?>][adresa]" value="<?php echo esc_attr( $s['adresa'] ); ?>" placeholder="Ilica 1, Zagreb" style="width:100%"></td>
 						<td><input type="text" name="p[<?php echo (int) $i; ?>][oznaka]" value="<?php echo esc_attr( $s['oznaka'] ); ?>" placeholder="P1" size="6"></td>
 						<td><input type="text" name="p[<?php echo (int) $i; ?>][broj_pohrane]" value="<?php echo esc_attr( $s['broj_pohrane'] ); ?>" size="4"></td>
-						<td><code><?php echo $s['id'] ? esc_html( SCP_Files::build_filename( $s, 'csv' ) ) : '—'; ?></code></td>
+						<td><code><?php echo $s['id'] ? esc_html( SCP_Files::build_filename( $s, 'csv' ) ) : '-'; ?></code></td>
 					</tr>
 					<?php endforeach; ?>
 					</tbody>

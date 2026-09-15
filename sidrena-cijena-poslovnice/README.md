@@ -1,4 +1,4 @@
-# Sidrena cijena – cjenik poslovnica
+# Sidrena cijena - cjenik poslovnica
 
 WordPress plugin za dnevnu objavu strojno čitljivog cjenika (.csv i .xml) za **fizičke poslovnice**, prema
 Odluci o objavi cjenika proizvoda i usluga kao mjera izravne kontrole cijena (NN 101/2026, na snazi od 1. 10. 2026.).

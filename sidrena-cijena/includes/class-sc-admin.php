@@ -358,7 +358,7 @@ final class SC_Admin {
 				<table class="form-table">
 					<tr><th><label>Izvor podatka „marka“</label></th>
 						<td><select name="marka_izvor">
-							<option value="none" <?php selected( $s['marka_izvor'], 'none' ); ?>>— prazno —</option>
+							<option value="none" <?php selected( $s['marka_izvor'], 'none' ); ?>>prazno</option>
 							<?php
 							if ( taxonomy_exists( 'product_brand' ) ) :
 								?>

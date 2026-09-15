@@ -97,14 +97,14 @@ Ništa se nikad ne pokreće zbog posjeta kupca, ni pri aktivaciji plugina. Pozad
 zaključavanje). Ako je zadnji cjenik stariji od 24 h, a automatika je uključena, admin vidi upozorenje.
 
 ## WP-CLI
-- `wp sidrena snapshot [--overwrite]` – zabilježi sidrene cijene
-- `wp sidrena export` – generiraj cjenik
+- `wp sidrena snapshot [--overwrite]` - zabilježi sidrene cijene
+- `wp sidrena export` - generiraj cjenik
 - `wp sidrena status`
 
 ## Meta polja
-- `_sidrena_cijena` – iznos, unesen isto kao redovna cijena (s ili bez PDV-a prema postavkama trgovine)
-- `_sidrena_cijena_datum` – GGGG-MM-DD
-- `_sidrena_cijena_izvor` – `snapshot` | `novi` | `rucno` | `uvoz`
+- `_sidrena_cijena` - iznos, unesen isto kao redovna cijena (s ili bez PDV-a prema postavkama trgovine)
+- `_sidrena_cijena_datum` - GGGG-MM-DD
+- `_sidrena_cijena_izvor` - `snapshot` | `novi` | `rucno` | `uvoz`
 
 WooCommerce CSV uvoz/izvoz proizvoda prenosi ih kao `Meta: _sidrena_cijena` itd.
 
@@ -116,7 +116,7 @@ WooCommerce CSV uvoz/izvoz proizvoda prenosi ih kao `Meta: _sidrena_cijena` itd.
 
 ## Kompatibilnost s drugim pluginovima
 Filter za prikaz cijene izvršava se zadnji (`PHP_INT_MAX`), pa sidrena cijena ostaje i kad drugi plugin gradi
-HTML cijene ispočetka, npr. „WooCommerce – Najniža cijena u zadnjih 30 dana“. Testirano: akcijski proizvod
+HTML cijene ispočetka, npr. „WooCommerce - Najniža cijena u zadnjih 30 dana“. Testirano: akcijski proizvod
 prikazuje redovnu, akcijsku, najnižu u 30 dana i sidrenu cijenu.
 
 ## Ograničenja

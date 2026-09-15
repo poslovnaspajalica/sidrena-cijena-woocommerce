@@ -89,7 +89,7 @@ final class SC_Product_Fields {
 				<span class="title">Sidrena cijena</span>
 				<span class="input-text-wrap">
 					<select name="_sc_bulk_izuzeto">
-						<option value="">— Bez promjene —</option>
+						<option value="">Bez promjene</option>
 						<option value="yes">Ne ističi sidrenu cijenu</option>
 						<option value="no">Ističi sidrenu cijenu</option>
 					</select>
@@ -99,7 +99,7 @@ final class SC_Product_Fields {
 				<span class="title">Cjenik</span>
 				<span class="input-text-wrap">
 					<select name="_sc_bulk_cjenik">
-						<option value="">— Bez promjene —</option>
+						<option value="">Bez promjene</option>
 						<option value="yes">Ne uključuj u cjenik</option>
 						<option value="no">Uključi u cjenik</option>
 					</select>
@@ -236,12 +236,12 @@ final class SC_Product_Fields {
 		}
 		if ( $product->is_type( 'variable' ) ) {
 			$r = SC_Display::resolve( $product );
-			echo $r ? wp_kses_post( $r['min'] < $r['max'] ? wc_format_price_range( $r['min'], $r['max'] ) : wc_price( $r['min'] ) ) : '<span style="color:#b32d2e">—</span>';
+			echo $r ? wp_kses_post( $r['min'] < $r['max'] ? wc_format_price_range( $r['min'], $r['max'] ) : wc_price( $r['min'] ) ) : '<span style="color:#b32d2e">-</span>';
 			return;
 		}
 		$s = SC_Snapshot::get( $product );
 		if ( ! $s ) {
-			echo '<span style="color:#b32d2e" title="Nije zabilježena">—</span>';
+			echo '<span style="color:#b32d2e" title="Nije zabilježena">-</span>';
 			return;
 		}
 		echo wp_kses_post( wc_price( $s['price'] ) ) . '<br><small>' . esc_html( SC_Settings::format_date( $s['date'] ) ) . '</small>';

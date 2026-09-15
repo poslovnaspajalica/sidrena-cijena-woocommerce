@@ -9,11 +9,11 @@ Pravni temelj: Zakon o iznimnim mjerama kontrole cijena (NN 40/2025).
 
 ## Sadržaj repozitorija
 
-- [`sidrena-cijena/`](sidrena-cijena/) – **webshop plugin** (WooCommerce): isticanje sidrene cijene i dnevni cjenik
-- [`sidrena-cijena/README.md`](sidrena-cijena/README.md) – upute za instalaciju, postavke, cron, uvoz, WP-CLI
-- [`sidrena-cijena-poslovnice/`](sidrena-cijena-poslovnice/) – **plugin za fizičke poslovnice**: ručni dnevni upload CSV-a s blagajne,
+- [`sidrena-cijena/`](sidrena-cijena/) - **webshop plugin** (WooCommerce): isticanje sidrene cijene i dnevni cjenik
+- [`sidrena-cijena/README.md`](sidrena-cijena/README.md) - upute za instalaciju, postavke, cron, uvoz, WP-CLI
+- [`sidrena-cijena-poslovnice/`](sidrena-cijena-poslovnice/) - **plugin za fizičke poslovnice**: ručni dnevni upload CSV-a s blagajne,
   pretvorba u propisani .csv/.xml i objava na istoj stranici `/cjenik/` (radi i bez WooCommercea)
-- [`sidrena-cijena-poslovnice/README.md`](sidrena-cijena-poslovnice/README.md) – upute
+- [`sidrena-cijena-poslovnice/README.md`](sidrena-cijena-poslovnice/README.md) - upute
 
 Oba zipa su u [Releases](../../releases).
 
