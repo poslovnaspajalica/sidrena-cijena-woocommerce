@@ -354,13 +354,21 @@ final class SC_Export {
             exit;
         }
         if (!hash_equals(SC_Settings::cron_token(), (string) $_GET['sidrena_cron'])) {
+            // Usporavanje pogađanja tokena i bez otkrivanja detalja.
+            usleep(500000);
             status_header(403);
             header('Content-Type: application/json; charset=utf-8');
-            echo wp_json_encode(['ok' => false, 'error' => 'invalid token']);
+            echo wp_json_encode(['ok' => false, 'error' => 'forbidden']);
             exit;
         }
         nocache_headers();
         header('Content-Type: application/json; charset=utf-8');
+        // Najviše jedno pokretanje u 5 minuta, i ako token procuri ne može se izazvati trajno opterećenje.
+        if (get_transient('sc_external_rate') && empty($_GET['only_due'])) {
+            status_header(429);
+            echo wp_json_encode(['ok' => false, 'error' => 'rate limited: at most one run per 5 minutes']);
+            exit;
+        }
         if (!empty($_GET['only_due']) && !self::is_due()) {
             echo wp_json_encode(['ok' => true, 'skipped' => 'already generated today', 'last' => self::last()]);
             exit;
@@ -370,10 +378,12 @@ final class SC_Export {
             exit;
         }
         if (!empty($_GET['wait'])) {
+            set_transient('sc_external_rate', 1, 5 * MINUTE_IN_SECONDS);
             $r = self::run_background('external');
             echo wp_json_encode($r === null ? ['ok' => false, 'error' => 'export already running'] : ['ok' => true] + $r);
             exit;
         }
+        set_transient('sc_external_rate', 1, 5 * MINUTE_IN_SECONDS);
         echo wp_json_encode(['ok' => true, 'started' => true, 'last' => self::last()]);
         self::finish_request();
         self::run_background('external');

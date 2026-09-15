@@ -93,9 +93,10 @@ final class SC_Admin {
         $tab = sanitize_key($_GET['tab'] ?? 'status');
         $tabs = ['status' => 'Status i akcije', 'postavke' => 'Postavke', 'cjenici' => 'Cjenici', 'uvoz' => 'Uvoz / izvoz sidrenih cijena'];
         echo '<div class="wrap"><h1>Sidrena cijena</h1>';
-        if (!empty($_GET['sc_msg'])) {
-            $type = !empty($_GET['sc_err']) ? 'error' : 'success';
-            echo '<div class="notice notice-' . $type . ' is-dismissible"><p>' . esc_html(wp_unslash($_GET['sc_msg'])) . '</p></div>';
+        $flash = get_transient('sc_flash_' . get_current_user_id());
+        if (is_array($flash) && !empty($flash['msg'])) {
+            delete_transient('sc_flash_' . get_current_user_id());
+            echo '<div class="notice notice-' . (!empty($flash['err']) ? 'error' : 'success') . ' is-dismissible"><p>' . esc_html($flash['msg']) . '</p></div>';
         }
         echo '<nav class="nav-tab-wrapper">';
         foreach ($tabs as $k => $label) {
@@ -380,7 +381,8 @@ final class SC_Admin {
     /* ---------- Handleri ---------- */
 
     private static function redirect(string $tab, string $msg, bool $err = false): void {
-        wp_safe_redirect(self::url($tab, ['sc_msg' => $msg, 'sc_err' => $err ? 1 : 0]));
+        set_transient('sc_flash_' . get_current_user_id(), ['msg' => $msg, 'err' => $err], MINUTE_IN_SECONDS);
+        wp_safe_redirect(self::url($tab));
         exit;
     }
 
