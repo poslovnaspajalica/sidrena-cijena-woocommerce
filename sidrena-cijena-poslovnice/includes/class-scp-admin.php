@@ -462,9 +462,9 @@ final class SCP_Admin {
 		header( 'Content-Disposition: attachment; filename="predlozak-cjenik-poslovnica.csv"' );
 		echo "\xEF\xBB\xBF";
 		echo "barkod;naziv;cijena;akcijska_cijena;dostupnost;sidrena_cijena;sifra;marka\n";
-		echo "3850126075287;\"4IN3+1 - EAT IT IT'S STILL GOOD (CD)\";10,49;;dostupno;10,49;CD-0001;Croatia Records\n";
-		echo "3858882144421;\"4 5 6 - PRIJE OVAKO BILO NIJE (LP)\";19,00;15,00;dostupno;19,00;LP-0002;\n";
-		echo "886979198029;\"2CELLOS - 2CELLOS (CD)\";9,00;;nedostupno;9,00;;\n";
+		echo "3859890000011;\"Primjer proizvod A (CD)\";10,49;;dostupno;10,49;ART-0001;Primjer marka\n";
+		echo "3859890000028;\"Primjer proizvod B (LP)\";19,00;15,00;dostupno;19,00;ART-0002;\n";
+		echo "3859890000035;\"Primjer proizvod C (majica)\";9,00;;nedostupno;9,00;;\n";
 		exit;
 	}
 }
