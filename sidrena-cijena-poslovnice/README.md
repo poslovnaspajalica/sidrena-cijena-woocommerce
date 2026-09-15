@@ -23,6 +23,11 @@ točki VI. Odluke i objavi na stranici `/cjenik/`. Radi samostalno (ne treba Woo
    prvih 8 redaka u konačnom obliku.
 3. „Objavi cjenik“. Datoteke .csv i .xml su odmah javno dostupne, stare ostaju 35 dana (Odluka traži 30).
 
+**Propušteni dan.** Na kartici Objava svaka poslovnica ima traku zadnjih 14 dana (zeleno = objavljen, crveno =
+nedostaje). Klik na crveni dan otvara upload s tim danom u polju „Cjenik vrijedi za dan“. Naziv datoteke uvijek nosi
+stvarno vrijeme objave, kako traži točka VI. Odluke, a dan za koji cjenik vrijedi zapisan je u XML-u
+(`vrijedi_za`), u `index.json` i na javnoj stranici u stupcu „Vrijedi za“. Datum u budućnosti nije moguć.
+
 Obrada je čista pretvorba datoteke bez upita u bazu; i 25.000 redaka prođe u nekoliko sekundi.
 
 ## Ulazni CSV

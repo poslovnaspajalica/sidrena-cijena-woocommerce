@@ -273,7 +273,9 @@ final class SCP_Convert {
 	}
 
 	/** Zapiši CSV i XML u mapu poslovnice. Vraća nazive datoteka. */
-	public static function write( array $store, array $rows, array $s ): array {
+	public static function write( array $store, array $rows, array $s, ?string $vrijedi_za = null ): array {
+		$today      = wp_date( 'Y-m-d' );
+		$vrijedi_za = ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $vrijedi_za ) && $vrijedi_za <= $today ) ? $vrijedi_za : $today;
 		SCP_Files::ensure_dirs( $store['id'] );
 		$dir = SCP_Files::store_dir( $store['id'] );
 		$ts  = time();
@@ -304,6 +306,7 @@ final class SCP_Convert {
 			. ' oznaka_objekta="' . self::x( (string) $store['oznaka'] ) . '"'
 			. ' broj_pohrane="' . self::x( (string) $store['broj_pohrane'] ) . '"'
 			. ' referentni_datum="' . self::x( (string) $s['referentni_datum'] ) . '"'
+			. ' vrijedi_za="' . self::x( $vrijedi_za ) . '"'
 			. ' generirano="' . self::x( wp_date( 'c', $ts ) ) . '"'
 			. ' valuta="EUR"' . ">\n"
 		);
@@ -317,13 +320,16 @@ final class SCP_Convert {
 		fwrite( $xh, "</cjenik>\n" );
 		fclose( $xh );
 
+		SCP_Files::remember( $store['id'], $csv, $vrijedi_za );
+		SCP_Files::remember( $store['id'], $xml, $vrijedi_za );
 		SCP_Files::apply_retention( $store['id'] );
 		SCP_Files::write_index();
-		do_action( 'scp_published', $store, $csv, $xml, count( $rows ) );
+		do_action( 'scp_published', $store, $csv, $xml, count( $rows ), $vrijedi_za );
 		return [
-			'csv'  => $csv,
-			'xml'  => $xml,
-			'time' => $ts,
+			'csv'        => $csv,
+			'xml'        => $xml,
+			'time'       => $ts,
+			'vrijedi_za' => $vrijedi_za,
 		];
 	}
 }

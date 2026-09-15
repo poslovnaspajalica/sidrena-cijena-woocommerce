@@ -42,7 +42,7 @@ final class SCP_Admin {
 		if ( ! str_contains( $hook, self::PAGE ) ) {
 			return;
 		}
-		wp_add_inline_style( 'wp-admin', '.scp-card{background:#fff;border:1px solid #c3c4c7;padding:16px 20px;margin:16px 0;max-width:1000px}.scp-warn{color:#b32d2e}.scp-ok{color:#00a32a}.scp-stat{display:inline-block;margin-right:22px}.scp-stat b{display:block;font-size:20px}.scp-preview{overflow:auto;max-width:100%}.scp-preview table{font-size:12px;white-space:nowrap}' );
+		wp_add_inline_style( 'wp-admin', '.scp-day{display:inline-block;min-width:22px;text-align:center;padding:3px 2px;margin:1px;border-radius:3px;font-size:11px;text-decoration:none;color:#fff}.scp-day.has{background:#00a32a}.scp-day.miss{background:#d63638}.scp-cov td{vertical-align:middle}.scp-card{background:#fff;border:1px solid #c3c4c7;padding:16px 20px;margin:16px 0;max-width:1000px}.scp-warn{color:#b32d2e}.scp-ok{color:#00a32a}.scp-stat{display:inline-block;margin-right:22px}.scp-stat b{display:block;font-size:20px}.scp-preview{overflow:auto;max-width:100%}.scp-preview table{font-size:12px;white-space:nowrap}' );
 	}
 
 	private static function flash( string $msg, bool $err = false ): void {
@@ -136,23 +136,44 @@ final class SCP_Admin {
 		?>
 		<div class="scp-card">
 			<h2>Stanje danas (<?php echo esc_html( wp_date( 'd.m.Y.' ) ); ?>)</h2>
-			<?php
-			foreach ( $stores as $store ) :
-				$ok = SCP_Files::has_today( $store['id'] );
-				$l  = SCP_Files::latest( $store['id'] );
-				?>
-				<div class="scp-stat"><b class="<?php echo $ok ? 'scp-ok' : 'scp-warn'; ?>"><?php echo $ok ? 'objavljen' : 'nije objavljen'; ?></b><?php echo esc_html( $store['naziv'] ?: $store['adresa'] ); ?>
+			<table class="widefat striped scp-cov"><thead><tr><th>Poslovnica</th><th>Danas</th><th>Zadnjih 14 dana (klik na dan = objavi za taj dan)</th></tr></thead><tbody>
+			<?php foreach ( $stores as $store ) : ?>
+				<?php $ok = SCP_Files::has_today( $store['id'] ); ?>
+				<tr><td><strong><?php echo esc_html( $store['naziv'] ?: $store['adresa'] ); ?></strong></td>
+				<td class="<?php echo $ok ? 'scp-ok' : 'scp-warn'; ?>"><?php echo $ok ? '✔ objavljen' : '✖ nije objavljen'; ?></td>
+				<td>
 				<?php
-				if ( ! empty( $l['csv'] ) ) :
+				foreach ( SCP_Files::day_coverage( $store['id'], 14 ) as $d => $has ) :
 					?>
-					<br><small>zadnji: <?php echo esc_html( wp_date( 'd.m.Y. H:i', $l['csv']['mtime'] ) ); ?></small><?php endif; ?></div>
+					<a class="scp-day <?php echo $has ? 'has' : 'miss'; ?>" title="<?php echo esc_attr( SCP_Settings::format_date( $d ) . ( $has ? ': objavljen' : ': nedostaje' ) ); ?>" href="
+					<?php
+					echo esc_url(
+						self::url(
+							'objava',
+							[
+								'store' => $store['id'],
+								'dan'   => $d,
+							]
+						)
+					);
+					?>
+					#scp-upload"><?php echo esc_html( (int) substr( $d, 8, 2 ) ); ?></a><?php endforeach; ?></td></tr>
 			<?php endforeach; ?>
-			<p class="description">Odluka: cjenik ažuriran najkasnije do 8:00 za tekući radni dan.</p>
+			</tbody></table>
+			<p class="description">Odluka: cjenik ažuriran najkasnije do 8:00 za tekući radni dan. Propušteni dan se može nadopuniti: odaberi dan pri uploadu; datoteka nosi stvarni datum objave i oznaku za koji dan vrijedi.</p>
 		</div>
 
 		<?php if ( is_array( $preview ) ) : ?>
 		<div class="scp-card">
-			<h2>2. Pregled prije objave: <?php echo esc_html( $preview['store']['naziv'] ?: $preview['store']['adresa'] ); ?></h2>
+			<h2>2. Pregled prije objave: <?php echo esc_html( $preview['store']['naziv'] ?: $preview['store']['adresa'] ); ?>, vrijedi za <?php echo esc_html( SCP_Settings::format_date( $preview['vrijedi_za'] ?? wp_date( 'Y-m-d' ) ) ); ?></h2>
+			<?php
+			if ( ( $preview['vrijedi_za'] ?? '' ) !== wp_date( 'Y-m-d' ) ) :
+				?>
+				<p class="scp-warn">Naknadna objava za prošli dan. Datoteka će nositi današnji datum i vrijeme objave uz oznaku dana za koji vrijedi.</p><?php endif; ?>
+			<?php
+			if ( ! empty( $preview['vrijedi_za'] ) && SCP_Files::has_day( $preview['store']['id'], $preview['vrijedi_za'] ) ) :
+				?>
+				<p class="scp-warn">Za taj dan već postoji objavljen cjenik; nova objava se dodaje, stara ostaje dostupna.</p><?php endif; ?>
 			<?php $st = $preview['stats']; ?>
 			<div class="scp-stat"><b><?php echo (int) $st['ukupno']; ?></b>artikala</div>
 			<div class="scp-stat"><b><?php echo (int) $st['akcija']; ?></b>na akciji</div>
@@ -194,7 +215,16 @@ final class SCP_Admin {
 		</div>
 		<?php endif; ?>
 
-		<div class="scp-card">
+		<?php
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- predodabir iz linka, bez promjene stanja.
+		$pre_store = isset( $_GET['store'] ) ? sanitize_key( wp_unslash( $_GET['store'] ) ) : '';
+		$pre_day   = isset( $_GET['dan'] ) ? sanitize_text_field( wp_unslash( $_GET['dan'] ) ) : '';
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $pre_day ) || $pre_day > wp_date( 'Y-m-d' ) ) {
+			$pre_day = wp_date( 'Y-m-d' );
+		}
+		// phpcs:enable
+		?>
+		<div class="scp-card" id="scp-upload">
 			<h2>1. Prenesi CSV s blagajne</h2>
 			<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'scp_upload' ); ?>
@@ -204,8 +234,10 @@ final class SCP_Admin {
 						<?php
 						foreach ( $stores as $store ) :
 							?>
-							<option value="<?php echo esc_attr( $store['id'] ); ?>"><?php echo esc_html( ( $store['naziv'] ?: $store['adresa'] ) . ( $store['naziv'] && $store['adresa'] ? ' (' . $store['adresa'] . ')' : '' ) ); ?></option><?php endforeach; ?>
+							<option value="<?php echo esc_attr( $store['id'] ); ?>" <?php selected( $pre_store, $store['id'] ); ?>><?php echo esc_html( ( $store['naziv'] ?: $store['adresa'] ) . ( $store['naziv'] && $store['adresa'] ? ' (' . $store['adresa'] . ')' : '' ) ); ?></option><?php endforeach; ?>
 					</select></td></tr>
+					<tr><th><label for="scp-dan">Cjenik vrijedi za dan</label></th><td><input type="date" name="vrijedi_za" id="scp-dan" value="<?php echo esc_attr( $pre_day ); ?>" max="<?php echo esc_attr( wp_date( 'Y-m-d' ) ); ?>" required>
+						<p class="description">Zadano danas. Za nadopunu propuštenog dana odaberi taj dan. Naziv datoteke uvijek nosi stvarno vrijeme objave (točka VI. Odluke), a dan za koji vrijedi zapisan je u XML-u i na javnoj stranici.</p></td></tr>
 					<tr><th><label for="scp-csv">CSV datoteka</label></th><td><input type="file" name="csv" id="scp-csv" accept=".csv,.txt,text/csv,text/plain" required>
 						<p class="description">Obvezni stupci: <code>barkod</code>, <code>naziv</code>, <code>cijena</code>. Neobavezni: <code>akcijska_cijena</code>, <code>dostupnost</code>, <code>sidrena_cijena</code>, <code>sifra</code>, <code>marka</code>. Nazivi stupaca se prepoznaju automatski (npr. EAN, MPC, akcija, zaliha). Separator ; ili , ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250.
 						<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_template' ), 'scp_template' ) ); ?>">Preuzmi predložak CSV-a</a></p></td></tr>
@@ -228,9 +260,9 @@ final class SCP_Admin {
 				echo '<p>Nema objavljenih datoteka.</p></div>';
 				continue;
 			}
-			echo '<table class="widefat striped"><thead><tr><th>Datoteka</th><th>Objavljeno</th><th>Veličina</th>' . ( $is_admin ? '<th></th>' : '' ) . '</tr></thead><tbody>';
+			echo '<table class="widefat striped"><thead><tr><th>Datoteka</th><th>Vrijedi za</th><th>Objavljeno</th><th>Veličina</th>' . ( $is_admin ? '<th></th>' : '' ) . '</tr></thead><tbody>';
 			foreach ( $files as $f ) {
-				echo '<tr><td><a href="' . esc_url( $f['url'] ) . '">' . esc_html( $f['name'] ) . '</a></td><td>' . esc_html( wp_date( 'd.m.Y. H:i', $f['mtime'] ) ) . '</td><td>' . esc_html( size_format( $f['size'] ) ) . '</td>';
+				echo '<tr><td><a href="' . esc_url( $f['url'] ) . '">' . esc_html( $f['name'] ) . '</a></td><td>' . esc_html( SCP_Settings::format_date( $f['vrijedi_za'] ) ) . '</td><td>' . esc_html( wp_date( 'd.m.Y. H:i', $f['mtime'] ) ) . '</td><td>' . esc_html( size_format( $f['size'] ) ) . '</td>';
 				if ( $is_admin ) {
 					$del = wp_nonce_url( admin_url( 'admin-post.php?action=scp_delete_file&store=' . rawurlencode( $store['id'] ) . '&file=' . rawurlencode( $f['name'] ) ), 'scp_delete_' . $store['id'] . '_' . $f['name'] );
 					echo '<td><a href="' . esc_url( $del ) . '" class="submitdelete" onclick="return confirm(\'Obrisati datoteku? Odluka traži 30 dana dostupnosti; briši samo duplikate istog dana.\')">Obriši</a></td>';
@@ -327,6 +359,10 @@ final class SCP_Admin {
 		if ( absint( $_FILES['csv']['size'] ?? 0 ) > 20 * MB_IN_BYTES ) {
 			self::redirect( 'objava', 'Datoteka je veća od 20 MB.', true );
 		}
+		$vrijedi_za = isset( $_POST['vrijedi_za'] ) ? sanitize_text_field( wp_unslash( $_POST['vrijedi_za'] ) ) : '';
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $vrijedi_za ) || $vrijedi_za > wp_date( 'Y-m-d' ) ) {
+			$vrijedi_za = wp_date( 'Y-m-d' );
+		}
 		$parsed = SCP_Convert::parse( $tmp );
 		if ( $parsed['errors'] ) {
 			self::redirect( 'objava', implode( ' ', $parsed['errors'] ), true );
@@ -342,13 +378,14 @@ final class SCP_Admin {
 		set_transient(
 			'scp_preview_' . $token,
 			[
-				'token'  => $token,
-				'store'  => $store,
-				'header' => $parsed['header'],
-				'map'    => $parsed['map'],
-				'stats'  => $t['stats'],
-				'rows'   => array_slice( $t['rows'], 0, 8 ),
-				'user'   => get_current_user_id(),
+				'token'      => $token,
+				'vrijedi_za' => $vrijedi_za,
+				'store'      => $store,
+				'header'     => $parsed['header'],
+				'map'        => $parsed['map'],
+				'stats'      => $t['stats'],
+				'rows'       => array_slice( $t['rows'], 0, 8 ),
+				'user'       => get_current_user_id(),
 			],
 			HOUR_IN_SECONDS
 		);
@@ -372,8 +409,8 @@ final class SCP_Admin {
 		if ( ! is_array( $rows ) || ! $rows ) {
 			self::redirect( 'objava', 'Podaci pregleda nisu čitljivi, prenesi datoteku ponovno.', true );
 		}
-		$r = SCP_Convert::write( $preview['store'], $rows, SCP_Settings::all() );
-		self::redirect( 'objava', sprintf( 'Cjenik objavljen: %s (%d artikala). XML: %s', $r['csv'], count( $rows ), $r['xml'] ) );
+		$r = SCP_Convert::write( $preview['store'], $rows, SCP_Settings::all(), $preview['vrijedi_za'] ?? null );
+		self::redirect( 'objava', sprintf( 'Cjenik objavljen za %s: %s (%d artikala). XML: %s', SCP_Settings::format_date( $r['vrijedi_za'] ), $r['csv'], count( $rows ), $r['xml'] ) );
 	}
 
 	public static function save_stores(): void {

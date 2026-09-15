@@ -84,11 +84,12 @@ final class SC_Public {
 				'najnoviji' => $s['latest'],
 				'datoteke'  => array_map(
 					static fn( $f ) => [
-						'naziv'    => $f['name'],
-						'format'   => $f['ext'],
-						'velicina' => $f['size'],
-						'datum'    => wp_date( 'c', $f['mtime'] ),
-						'url'      => $f['url'],
+						'naziv'      => $f['name'],
+						'format'     => $f['ext'],
+						'velicina'   => $f['size'],
+						'datum'      => wp_date( 'c', $f['mtime'] ),
+						'vrijedi_za' => $f['vrijedi_za'] ?? wp_date( 'Y-m-d', $f['mtime'] ),
+						'url'        => $f['url'],
 					],
 					$s['files']
 				),
@@ -196,14 +197,14 @@ code{background:#f3f3f3;padding:.1rem .3rem;border-radius:3px;font-size:.9em}sma
 				<br><small>Zadnja objava: <?php echo esc_html( wp_date( 'd.m.Y. H:i', (int) $s['updated'] ) ); ?></small><?php endif; ?>
 	</p>
 	<table>
-		<thead><tr><th>Datoteka</th><th>Format</th><th>Objavljeno</th><th>Veličina</th></tr></thead>
+		<thead><tr><th>Datoteka</th><th>Format</th><th>Vrijedi za</th><th>Objavljeno</th><th>Veličina</th></tr></thead>
 		<tbody>
 			<?php
 			if ( empty( $s['files'] ) ) :
 				?>
-				<tr><td colspan="4">Cjenik još nije objavljen.</td></tr><?php endif; ?>
+				<tr><td colspan="5">Cjenik još nije objavljen.</td></tr><?php endif; ?>
 			<?php foreach ( $s['files'] as $f ) : ?>
-			<tr><td><a href="<?php echo esc_url( $f['url'] ); ?>"><?php echo esc_html( $f['name'] ); ?></a></td><td><?php echo esc_html( strtoupper( $f['ext'] ) ); ?></td><td><?php echo esc_html( wp_date( 'd.m.Y. H:i', $f['mtime'] ) ); ?></td><td><?php echo esc_html( size_format( $f['size'] ) ); ?></td></tr>
+			<tr><td><a href="<?php echo esc_url( $f['url'] ); ?>"><?php echo esc_html( $f['name'] ); ?></a></td><td><?php echo esc_html( strtoupper( $f['ext'] ) ); ?></td><td><?php echo esc_html( SC_Settings::format_date( $f['vrijedi_za'] ?? wp_date( 'Y-m-d', $f['mtime'] ) ) ); ?></td><td><?php echo esc_html( wp_date( 'd.m.Y. H:i', $f['mtime'] ) ); ?></td><td><?php echo esc_html( size_format( $f['size'] ) ); ?></td></tr>
 		<?php endforeach; ?>
 		</tbody>
 	</table>

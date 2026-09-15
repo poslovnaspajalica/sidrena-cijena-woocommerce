@@ -66,26 +66,78 @@ final class SCP_Files {
 		return implode( '_', $parts ) . '.' . $ext;
 	}
 
-	/** @return array<int, array{name:string,ext:string,size:int,mtime:int,url:string}> najnovije prvo */
+	/* ---------- Manifest: za koji dan datoteka vrijedi ---------- */
+
+	public static function manifest(): array {
+		$m = get_option( 'scp_manifest', [] );
+		return is_array( $m ) ? $m : [];
+	}
+
+	public static function remember( string $store_id, string $filename, string $vrijedi_za ): void {
+		$m                           = self::manifest();
+		$m[ $store_id ][ $filename ] = [
+			'vrijedi_za' => $vrijedi_za,
+			'objavljeno' => time(),
+		];
+		update_option( 'scp_manifest', $m, false );
+	}
+
+	public static function forget( string $store_id, string $filename ): void {
+		$m = self::manifest();
+		unset( $m[ $store_id ][ $filename ] );
+		update_option( 'scp_manifest', $m, false );
+	}
+
+	/** @return array<int, array{name:string,ext:string,size:int,mtime:int,url:string,vrijedi_za:string}> najnovije prvo */
 	public static function list_files( string $store_id ): array {
 		$dir = self::store_dir( $store_id );
 		if ( ! is_dir( $dir ) ) {
 			return [];
 		}
-		$out = [];
+		$out      = [];
+		$manifest = self::manifest()[ $store_id ] ?? [];
 		foreach ( scandir( $dir ) ?: [] as $f ) {
 			if ( ! preg_match( '/\.(csv|xml)$/i', $f ) ) {
 				continue;
 			}
+			$mtime = (int) filemtime( $dir . $f );
 			$out[] = [
-				'name'  => $f,
-				'ext'   => strtolower( pathinfo( $f, PATHINFO_EXTENSION ) ),
-				'size'  => (int) filesize( $dir . $f ),
-				'mtime' => (int) filemtime( $dir . $f ),
-				'url'   => self::store_url( $store_id ) . rawurlencode( $f ),
+				'name'       => $f,
+				'ext'        => strtolower( pathinfo( $f, PATHINFO_EXTENSION ) ),
+				'size'       => (int) filesize( $dir . $f ),
+				'mtime'      => $mtime,
+				'url'        => self::store_url( $store_id ) . rawurlencode( $f ),
+				'vrijedi_za' => (string) ( $manifest[ $f ]['vrijedi_za'] ?? wp_date( 'Y-m-d', $mtime ) ),
 			];
 		}
-		usort( $out, static fn( $a, $b ) => $b['mtime'] <=> $a['mtime'] ?: strcmp( $b['name'], $a['name'] ) );
+		// Najnoviji = najkasniji dan za koji vrijedi, pa onda vrijeme objave.
+		usort( $out, static fn( $a, $b ) => strcmp( $b['vrijedi_za'], $a['vrijedi_za'] ) ?: ( $b['mtime'] <=> $a['mtime'] ) ?: strcmp( $b['name'], $a['name'] ) );
+		return $out;
+	}
+
+	/** Postoji li cjenik koji vrijedi za zadani dan. */
+	public static function has_day( string $store_id, string $ymd ): bool {
+		foreach ( self::list_files( $store_id ) as $f ) {
+			if ( $f['ext'] === 'csv' && $f['vrijedi_za'] === $ymd ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Zadnjih N dana: [ 'Y-m-d' => bool ] od najstarijeg prema danas. */
+	public static function day_coverage( string $store_id, int $days = 14 ): array {
+		$have = [];
+		foreach ( self::list_files( $store_id ) as $f ) {
+			if ( $f['ext'] === 'csv' ) {
+				$have[ $f['vrijedi_za'] ] = true;
+			}
+		}
+		$out = [];
+		for ( $i = $days - 1; $i >= 0; $i-- ) {
+			$d         = wp_date( 'Y-m-d', strtotime( "-{$i} days", (int) current_time( 'timestamp' ) ) ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- lokalni dan.
+			$out[ $d ] = isset( $have[ $d ] );
+		}
 		return $out;
 	}
 
@@ -104,8 +156,7 @@ final class SCP_Files {
 	}
 
 	public static function has_today( string $store_id ): bool {
-		$l = self::latest( $store_id );
-		return ! empty( $l['csv'] ) && wp_date( 'Y-m-d', $l['csv']['mtime'] ) === wp_date( 'Y-m-d' );
+		return self::has_day( $store_id, wp_date( 'Y-m-d' ) );
 	}
 
 	public static function apply_retention( string $store_id ): void {
@@ -114,6 +165,7 @@ final class SCP_Files {
 		foreach ( self::list_files( $store_id ) as $f ) {
 			if ( $f['mtime'] < $cutoff ) {
 				wp_delete_file( self::store_dir( $store_id ) . $f['name'] );
+				self::forget( $store_id, $f['name'] );
 			}
 		}
 	}
@@ -123,6 +175,7 @@ final class SCP_Files {
 		foreach ( self::list_files( $store_id ) as $f ) {
 			if ( $f['name'] === $name ) {
 				wp_delete_file( self::store_dir( $store_id ) . $name );
+				self::forget( $store_id, $name );
 				self::write_index();
 				return ! file_exists( self::store_dir( $store_id ) . $name );
 			}
@@ -162,11 +215,12 @@ final class SCP_Files {
 					'najnoviji' => $s['latest'],
 					'datoteke'  => array_map(
 						static fn( $f ) => [
-							'naziv'    => $f['name'],
-							'format'   => $f['ext'],
-							'velicina' => $f['size'],
-							'datum'    => wp_date( 'c', $f['mtime'] ),
-							'url'      => $f['url'],
+							'naziv'      => $f['name'],
+							'format'     => $f['ext'],
+							'velicina'   => $f['size'],
+							'datum'      => wp_date( 'c', $f['mtime'] ),
+							'vrijedi_za' => $f['vrijedi_za'],
+							'url'        => $f['url'],
 						],
 						$s['files']
 					),
