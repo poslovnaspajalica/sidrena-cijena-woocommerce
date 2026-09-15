@@ -9,8 +9,13 @@ Pravni temelj: Zakon o iznimnim mjerama kontrole cijena (NN 40/2025).
 
 ## Sadržaj repozitorija
 
-- [`sidrena-cijena/`](sidrena-cijena/) – plugin (kopiraj u `wp-content/plugins/` ili preuzmi zip iz [Releases](../../releases))
+- [`sidrena-cijena/`](sidrena-cijena/) – **webshop plugin** (WooCommerce): isticanje sidrene cijene i dnevni cjenik
 - [`sidrena-cijena/README.md`](sidrena-cijena/README.md) – upute za instalaciju, postavke, cron, uvoz, WP-CLI
+- [`sidrena-cijena-poslovnice/`](sidrena-cijena-poslovnice/) – **plugin za fizičke poslovnice**: ručni dnevni upload CSV-a s blagajne,
+  pretvorba u propisani .csv/.xml i objava na istoj stranici `/cjenik/` (radi i bez WooCommercea)
+- [`sidrena-cijena-poslovnice/README.md`](sidrena-cijena-poslovnice/README.md) – upute
+
+Oba zipa su u [Releases](../../releases).
 
 Službeni tekstovi odluka: [NN 101/2026, 1212](https://narodne-novine.nn.hr/clanci/sluzbeni/full/2026_09_101_1212.html) (isticanje dodatne cijene) i [NN 101/2026, 1213](https://narodne-novine.nn.hr/clanci/sluzbeni/full/2026_09_101_1213.html) (objava cjenika).
 

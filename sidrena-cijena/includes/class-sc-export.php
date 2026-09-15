@@ -785,27 +785,7 @@ final class SC_Export {
 	}
 
 	public static function write_index(): void {
-		$files = self::list_files();
-		$last  = get_option( self::LAST_OPT, [] );
-		$data  = [
-			'trgovac'          => SC_Settings::get( 'naziv_trgovca' ) ?: get_bloginfo( 'name' ),
-			'referentni_datum' => SC_Settings::get( 'referentni_datum' ),
-			'generirano'       => wp_date( 'c' ),
-			'najnoviji'        => [
-				'csv' => ! empty( $last['csv'] ) ? self::files_url() . rawurlencode( $last['csv'] ) : null,
-				'xml' => ! empty( $last['xml'] ) ? self::files_url() . rawurlencode( $last['xml'] ) : null,
-			],
-			'datoteke'         => array_map(
-				static fn( $f ) => [
-					'naziv'    => $f['name'],
-					'format'   => $f['ext'],
-					'velicina' => $f['size'],
-					'datum'    => wp_date( 'c', $f['mtime'] ),
-					'url'      => $f['url'],
-				],
-				$files
-			),
-		];
+		$data = class_exists( 'SC_Public' ) ? SC_Public::index_data() : [];
 		file_put_contents( self::files_dir() . 'index.json', wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
 	}
 

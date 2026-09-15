@@ -1,0 +1,77 @@
+<?php
+/**
+ * Plugin Name: Sidrena cijena – cjenik poslovnica
+ * Description: Dnevna objava strojno čitljivog cjenika (.csv/.xml) za fizičke poslovnice prema Odluci NN 101/2026: ručni upload CSV-a s blagajne, pretvorba u propisanu strukturu, objava na stranici /cjenik/. Radi samostalno ili uz plugin "Sidrena cijena za WooCommerce".
+ * Version: 1.0.0
+ * Author: Poslovna spajalica
+ * Requires at least: 6.5
+ * Requires PHP: 8.1
+ * Text Domain: sidrena-cijena-poslovnice
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'SCP_VERSION', '1.0.0' );
+define( 'SCP_FILE', __FILE__ );
+define( 'SCP_DIR', plugin_dir_path( __FILE__ ) );
+define( 'SCP_URL', plugin_dir_url( __FILE__ ) );
+define( 'SCP_CAP', 'scp_upload_cjenik' );
+
+require_once SCP_DIR . 'includes/class-scp-settings.php';
+require_once SCP_DIR . 'includes/class-scp-files.php';
+require_once SCP_DIR . 'includes/class-scp-convert.php';
+require_once SCP_DIR . 'includes/class-scp-admin.php';
+require_once SCP_DIR . 'includes/class-scp-public.php';
+
+final class Sidrena_Cijena_Poslovnice_Plugin {
+
+	public static function init(): void {
+		add_action( 'plugins_loaded', [ __CLASS__, 'bootstrap' ] );
+		register_activation_hook( SCP_FILE, [ __CLASS__, 'activate' ] );
+		register_deactivation_hook( SCP_FILE, [ __CLASS__, 'deactivate' ] );
+	}
+
+	public static function bootstrap(): void {
+		SCP_Files::init();
+		SCP_Admin::init();
+		SCP_Public::init();
+	}
+
+	public static function activate(): void {
+		if ( ! get_option( SCP_Settings::OPTION ) ) {
+			update_option( SCP_Settings::OPTION, SCP_Settings::defaults(), false );
+		}
+		// Ovlast za upload: administrator i voditelj trgovine, plus zasebna uloga za djelatnike poslovnica.
+		foreach ( [ 'administrator', 'shop_manager' ] as $role_name ) {
+			$role = get_role( $role_name );
+			if ( $role ) {
+				$role->add_cap( SCP_CAP );
+			}
+		}
+		if ( ! get_role( 'scp_poslovnica' ) ) {
+			add_role(
+				'scp_poslovnica',
+				'Cjenik poslovnice',
+				[
+					'read'  => true,
+					SCP_CAP => true,
+				]
+			);
+		}
+		SCP_Files::ensure_dirs();
+		SCP_Files::schedule_reminder();
+		SCP_Public::register_rewrites();
+		flush_rewrite_rules();
+	}
+
+	public static function deactivate(): void {
+		SCP_Files::unschedule_reminder();
+		flush_rewrite_rules();
+	}
+}
+
+Sidrena_Cijena_Poslovnice_Plugin::init();
