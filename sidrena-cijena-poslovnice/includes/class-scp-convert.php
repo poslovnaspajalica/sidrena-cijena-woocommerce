@@ -32,16 +32,16 @@ final class SCP_Convert {
 	/** Prepoznavanje ulaznih stupaca po nazivu zaglavlja (mala slova, bez dijakritike). */
 	private static function aliases(): array {
 		return [
-			'barkod'          => [ 'barkod', 'barcode', 'ean', 'gtin', 'ean13', 'bar_kod', 'bar kod' ],
+			'barkod'          => [ 'barkod', 'barcode', 'ean', 'gtin', 'ean13', 'bar_kod', 'bar kod', 'kataloski broj', 'kataloski_broj', 'kat broj', 'kat_broj', 'katbr' ],
 			'naziv'           => [ 'naziv', 'naziv_proizvoda', 'naziv proizvoda', 'naziv artikla', 'naziv_artikla', 'naziv robe', 'name', 'artikl', 'proizvod', 'opis' ],
 			'sifra'           => [ 'sifra', 'sifra_proizvoda', 'sku', 'code', 'kod', 'artikl_sifra' ],
 			'marka'           => [ 'marka', 'brand', 'proizvodac', 'brend' ],
-			'cijena'          => [ 'cijena', 'mpc', 'maloprodajna_cijena', 'maloprodajna cijena', 'redovna_cijena', 'redovna cijena', 'price', 'cijena_s_pdv', 'mpc_s_pdv' ],
+			'cijena'          => [ 'cijena', 'mpc', 'maloprodajna_cijena', 'maloprodajna cijena', 'redovna_cijena', 'redovna cijena', 'price', 'cijena_s_pdv', 'mpc_s_pdv', 'mp cijena', 'prosjecna mp cijena', 'prodajna cijena' ],
 			'akcijska'        => [ 'akcijska_cijena', 'akcijska cijena', 'akcija', 'sale_price', 'snizena_cijena', 'cijena_akcija', 'akcijska' ],
 			'dostupnost'      => [ 'dostupnost', 'dostupno', 'zaliha', 'stanje', 'na_stanju', 'stock', 'availability', 'kolicina', 'količina' ],
 			'sidrena'         => [ 'sidrena_cijena', 'sidrena cijena', 'sidrena', 'dodatna_cijena', 'anchor_price' ],
 			'sidrena_datum'   => [ 'sidrena_cijena_datum', 'datum_sidrene', 'sidrena_datum' ],
-			'jedinica'        => [ 'jedinica_mjere', 'jedinica mjere', 'jm', 'unit' ],
+			'jedinica'        => [ 'jedinica_mjere', 'jedinica mjere', 'jm', 'unit', 'jedmj', 'jed mj', 'jed mjere' ],
 			'cijena_jedinica' => [ 'cijena_za_jedinicu_mjere', 'cijena za jedinicu mjere', 'cijena_jm', 'unit_price' ],
 			'naziv_akcije'    => [ 'naziv_posebnog_oblika_prodaje', 'naziv_akcije', 'vrsta_akcije' ],
 		];
@@ -81,27 +81,111 @@ final class SCP_Convert {
 		return $best;
 	}
 
+	/** Podržane ekstenzije ulazne datoteke. */
+	public static function supported_extensions(): array {
+		$ext = [ 'csv', 'txt' ];
+		if ( class_exists( \PhpOffice\PhpSpreadsheet\IOFactory::class ) ) {
+			$ext = array_merge( $ext, [ 'xls', 'xlsx', 'ods' ] );
+		}
+		return $ext;
+	}
+
 	/**
-	 * Parsiraj ulazni CSV.
+	 * Parsiraj ulaznu datoteku (CSV ili Excel).
+	 *
+	 * @param string $path       Putanja do datoteke.
+	 * @param string $ext        Ekstenzija izvorne datoteke (csv, xls, xlsx...).
+	 * @param array  $forced_map Ručno mapiranje polja => indeks stupca.
 	 * @return array{header:array,map:array,rows:array,delimiter:string,errors:array}
 	 */
-	public static function parse( string $path, array $forced_map = [] ): array {
+	public static function parse( string $path, string $ext = 'csv', array $forced_map = [] ): array {
+		$ext = strtolower( $ext );
+		if ( in_array( $ext, [ 'xls', 'xlsx', 'ods' ], true ) ) {
+			return self::parse_spreadsheet( $path, $ext, $forced_map );
+		}
 		$text  = self::read_text( $path );
 		$lines = explode( "\n", $text );
 		while ( $lines && trim( (string) end( $lines ) ) === '' ) {
 			array_pop( $lines );
 		}
 		if ( count( $lines ) < 2 ) {
-			return [
-				'header'    => [],
-				'map'       => [],
-				'rows'      => [],
-				'delimiter' => ';',
-				'errors'    => [ 'Datoteka je prazna ili nema redaka s podacima.' ],
-			];
+			return self::failure( 'Datoteka je prazna ili nema redaka s podacima.' );
 		}
 		$delim  = self::detect_delimiter( $lines[0] );
 		$header = str_getcsv( $lines[0], $delim, '"', '' );
+		$rows   = [];
+		$n      = count( $lines );
+		for ( $i = 1; $i < $n; $i++ ) {
+			if ( trim( $lines[ $i ] ) === '' ) {
+				continue;
+			}
+			$rows[] = str_getcsv( $lines[ $i ], $delim, '"', '' );
+		}
+		return self::map_rows( $header, $rows, $forced_map, $delim );
+	}
+
+	private static function failure( string $msg, array $header = [] ): array {
+		return [
+			'header'    => $header,
+			'map'       => [],
+			'rows'      => [],
+			'delimiter' => '',
+			'errors'    => [ $msg ],
+		];
+	}
+
+	/** Excel/ODS: prvi list, prvi neprazni redak je zaglavlje. Brojevi se pretvaraju u tekst bez eksponenta. */
+	private static function parse_spreadsheet( string $path, string $ext, array $forced_map ): array {
+		if ( ! class_exists( \PhpOffice\PhpSpreadsheet\IOFactory::class ) ) {
+			return self::failure( 'Čitanje Excel datoteka nije dostupno (nedostaje biblioteka). Spremi kao CSV.' );
+		}
+		try {
+			$type = match ( $ext ) {
+				'xls'   => 'Xls',
+				'ods'   => 'Ods',
+				default => 'Xlsx',
+			};
+			$reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader( $type );
+			$reader->setReadDataOnly( true );
+			$book  = $reader->load( $path );
+			$sheet = $book->getSheet( 0 );
+			$grid  = $sheet->toArray( null, true, false, false );
+			$book->disconnectWorksheets();
+			unset( $book );
+		} catch ( \Throwable $e ) {
+			return self::failure( 'Excel datoteku nije moguće pročitati: ' . $e->getMessage() );
+		}
+		$cell   = static function ( $v ): string {
+			if ( $v === null ) {
+				return '';
+			}
+			if ( is_float( $v ) ) {
+				// Kataloški brojevi i barkodovi dolaze kao brojevi: bez ".0" i bez eksponenta.
+				return ( floor( $v ) === $v && abs( $v ) < 1e15 ) ? sprintf( '%.0f', $v ) : rtrim( rtrim( sprintf( '%.6f', $v ), '0' ), '.' );
+			}
+			return trim( (string) $v );
+		};
+		$header = [];
+		$rows   = [];
+		foreach ( $grid as $r ) {
+			$r = array_map( $cell, (array) $r );
+			if ( implode( '', $r ) === '' ) {
+				continue;
+			}
+			if ( ! $header ) {
+				$header = $r;
+				continue;
+			}
+			$rows[] = $r;
+		}
+		if ( ! $header || ! $rows ) {
+			return self::failure( 'Datoteka je prazna ili nema redaka s podacima.', $header );
+		}
+		return self::map_rows( $header, $rows, $forced_map, '' );
+	}
+
+	/** Prepoznaj stupce i vrati strukturu za transform(). */
+	private static function map_rows( array $header, array $rows, array $forced_map, string $delim ): array {
 		$normed = array_map( [ __CLASS__, 'norm' ], $header );
 
 		$map  = [];
@@ -146,20 +230,10 @@ final class SCP_Convert {
 			}
 		}
 
-		$rows = [];
-		if ( ! $errors ) {
-			$n = count( $lines );
-			for ( $i = 1; $i < $n; $i++ ) {
-				if ( trim( $lines[ $i ] ) === '' ) {
-					continue;
-				}
-				$rows[] = str_getcsv( $lines[ $i ], $delim, '"', '' );
-			}
-		}
 		return [
 			'header'    => $header,
 			'map'       => $map,
-			'rows'      => $rows,
+			'rows'      => $errors ? [] : $rows,
 			'delimiter' => $delim,
 			'errors'    => $errors,
 		];

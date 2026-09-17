@@ -242,8 +242,8 @@ final class SCP_Admin {
 					</select></td></tr>
 					<tr><th><label for="scp-dan">Cjenik vrijedi za dan</label></th><td><input type="date" name="vrijedi_za" id="scp-dan" value="<?php echo esc_attr( $pre_day ); ?>" max="<?php echo esc_attr( wp_date( 'Y-m-d' ) ); ?>" required>
 						<p class="description">Zadano danas. Za nadopunu propuštenog dana odaberi taj dan. Naziv datoteke uvijek nosi stvarno vrijeme objave (točka VI. Odluke), a dan za koji vrijedi zapisan je u XML-u i na javnoj stranici.</p></td></tr>
-					<tr><th><label for="scp-csv">CSV datoteka</label></th><td><input type="file" name="csv" id="scp-csv" accept=".csv,.txt,text/csv,text/plain" required>
-						<p class="description">Obvezni stupci: <code>barkod</code>, <code>naziv</code>, <code>cijena</code>. Neobavezni: <code>akcijska_cijena</code>, <code>dostupnost</code>, <code>sidrena_cijena</code>, <code>sifra</code>, <code>marka</code>, <code>jedinica_mjere</code>, <code>cijena_za_jedinicu_mjere</code>. Izlazna datoteka ima 14 stupaca propisanih Odlukom; one koje ne šaljete plugin računa (maloprodajna cijena, oznaka akcije) ili ostavlja prazne. Nazivi stupaca se prepoznaju automatski (npr. EAN, MPC, akcija, zaliha). Separator ; ili , ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250.
+					<tr><th><label for="scp-csv">Datoteka s blagajne (CSV ili Excel)</label></th><td><input type="file" name="csv" id="scp-csv" accept=".csv,.txt,.xls,.xlsx,.ods,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+						<p class="description">Obvezni stupci: <code>barkod</code>, <code>naziv</code>, <code>cijena</code>. Neobavezni: <code>akcijska_cijena</code>, <code>dostupnost</code>, <code>sidrena_cijena</code>, <code>sifra</code>, <code>marka</code>, <code>jedinica_mjere</code>, <code>cijena_za_jedinicu_mjere</code>. Izlazna datoteka ima 14 stupaca propisanih Odlukom; one koje ne šaljete plugin računa (maloprodajna cijena, oznaka akcije) ili ostavlja prazne. Prihvaća se i Excel (.xls, .xlsx) izravno iz blagajne, bez pretvorbe. Nazivi stupaca se prepoznaju automatski (npr. Kataloški broj, Naziv artikla, Prosječna MP cijena, Količina, EAN, MPC, akcija, zaliha). Separator ; ili , ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250.
 						<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_template' ), 'scp_template' ) ); ?>">Preuzmi predložak CSV-a</a></p></td></tr>
 				</table>
 				<?php submit_button( 'Učitaj i pregledaj', 'secondary', 'submit', false ); ?>
@@ -367,7 +367,16 @@ final class SCP_Admin {
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $vrijedi_za ) || $vrijedi_za > wp_date( 'Y-m-d' ) ) {
 			$vrijedi_za = wp_date( 'Y-m-d' );
 		}
-		$parsed = SCP_Convert::parse( $tmp );
+		$orig = isset( $_FILES['csv']['name'] ) ? sanitize_file_name( (string) $_FILES['csv']['name'] ) : '';
+		$ext  = strtolower( pathinfo( $orig, PATHINFO_EXTENSION ) );
+		if ( ! in_array( $ext, SCP_Convert::supported_extensions(), true ) ) {
+			self::redirect( 'objava', 'Nepodržana vrsta datoteke „' . $ext . '“. Dopušteno: ' . implode( ', ', SCP_Convert::supported_extensions() ) . '.', true );
+		}
+		wp_raise_memory_limit( 'admin' ); // Excel čitač drži cijeli list u memoriji.
+		if ( function_exists( 'set_time_limit' ) ) {
+			set_time_limit( 300 );
+		}
+		$parsed = SCP_Convert::parse( $tmp, $ext );
 		if ( $parsed['errors'] ) {
 			self::redirect( 'objava', implode( ' ', $parsed['errors'] ), true );
 		}

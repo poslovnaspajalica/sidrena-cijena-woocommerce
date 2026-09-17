@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Sidrena cijena - cjenik poslovnica
- * Description: Dnevna objava strojno čitljivog cjenika (.csv/.xml) za fizičke poslovnice prema Odluci NN 101/2026: ručni upload CSV-a s blagajne, pretvorba u propisanu strukturu, objava na stranici /cjenik/. Radi samostalno ili uz plugin "Sidrena cijena za WooCommerce".
- * Version: 1.0.5
+ * Description: Dnevna objava strojno čitljivog cjenika (.csv/.xml) za fizičke poslovnice prema Odluci NN 101/2026: ručni upload CSV-a ili Excela s blagajne, pretvorba u propisanu strukturu, objava na stranici /cjenik/. Radi samostalno ili uz plugin "Sidrena cijena za WooCommerce".
+ * Version: 1.1.0
  * Author: Poslovna spajalica
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -15,12 +15,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SCP_VERSION', '1.0.5' );
+define( 'SCP_VERSION', '1.1.0' );
 define( 'SCP_FILE', __FILE__ );
 define( 'SCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SCP_URL', plugin_dir_url( __FILE__ ) );
 define( 'SCP_CAP', 'scp_upload_cjenik' );
 
+if ( file_exists( SCP_DIR . 'vendor/autoload.php' ) ) {
+	require_once SCP_DIR . 'vendor/autoload.php'; // PhpSpreadsheet za .xls/.xlsx
+}
 require_once SCP_DIR . 'includes/class-scp-settings.php';
 require_once SCP_DIR . 'includes/class-scp-files.php';
 require_once SCP_DIR . 'includes/class-scp-convert.php';

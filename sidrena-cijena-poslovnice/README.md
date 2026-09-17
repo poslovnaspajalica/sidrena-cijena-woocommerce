@@ -3,7 +3,7 @@
 WordPress plugin za dnevnu objavu strojno čitljivog cjenika (.csv i .xml) za **fizičke poslovnice**, prema
 Odluci o objavi cjenika proizvoda i usluga kao mjera izravne kontrole cijena (NN 101/2026, na snazi od 1. 10. 2026.).
 
-Djelatnik svaki dan prenese CSV s blagajne, plugin ga pretvori u propisanu strukturu, imenuje datoteku po
+Djelatnik svaki dan prenese CSV ili Excel s blagajne, plugin ga pretvori u propisanu strukturu, imenuje datoteku po
 točki VI. Odluke i objavi na stranici `/cjenik/`. Radi samostalno (ne treba WooCommerce) ili uz plugin
 **Sidrena cijena za WooCommerce**, s kojim dijeli istu stranicu `/cjenik/` s karticama Webshop / Poslovnica.
 
@@ -18,7 +18,7 @@ točki VI. Odluke i objavi na stranici `/cjenik/`. Radi samostalno (ne treba Woo
 
 ## Dnevna objava (djelatnik)
 
-1. Cjenik poslovnica → Objava cjenika: odaberi poslovnicu, prenesi CSV, klikni „Učitaj i pregledaj“.
+1. Cjenik poslovnica → Objava cjenika: odaberi poslovnicu, prenesi CSV ili Excel s blagajne, klikni „Učitaj i pregledaj“.
 2. Pregled pokaže broj artikala, akcija, nedostupnih, bez barkoda i bez sidrene cijene, prepoznate stupce i
    prvih 8 redaka u konačnom obliku.
 3. „Objavi cjenik“. Datoteke .csv i .xml su odmah javno dostupne, stare ostaju 35 dana (Odluka traži 30).
@@ -30,15 +30,19 @@ stvarno vrijeme objave, kako traži točka VI. Odluke, a dan za koji cjenik vrij
 
 Obrada je čista pretvorba datoteke bez upita u bazu; i 25.000 redaka prođe u nekoliko sekundi.
 
-## Ulazni CSV
+## Ulazna datoteka (CSV ili Excel)
+
+Prihvaća se CSV, kao i Excel (.xls, .xlsx) ili ODS izravno iz blagajne, bez pretvorbe. Čita se prvi list, prvi
+neprazni redak je zaglavlje. Brojevi se prenose bez eksponenta i bez ".0", pa kataloški brojevi i barkodovi ostaju
+cjeloviti (Excel ih pri ručnom spremanju u CSV zna skratiti ili isprazniti).
 
 Obvezni stupci: `barkod`, `naziv`, `cijena`. Neobavezni: `akcijska_cijena`, `dostupnost`, `sidrena_cijena`,
 `sifra`, `marka`, `jedinica_mjere`, `cijena_za_jedinicu_mjere`. Predložak se preuzima u adminu. Izlazna datoteka
 ima 14 stupaca propisanih Odlukom: one koje ne šaljete plugin računa (maloprodajna cijena, oznaka i naziv akcije)
 ili ostavlja prazne (kategorija, url), a datum sidrene cijene upisuje iz postavki.
 
-- Nazivi stupaca prepoznaju se automatski i po sinonimima (EAN, GTIN, MPC, „MPC s PDV-om“, „Naziv artikla“,
-  akcija, zaliha, stanje...). Redoslijed nije bitan, višak stupaca se ignorira.
+- Nazivi stupaca prepoznaju se automatski i po sinonimima (Kataloški broj, EAN, GTIN, MPC, „Prosječna MP cijena“,
+  „Naziv artikla“, Količina, Jed.mj., akcija, zaliha, stanje...). Redoslijed nije bitan, višak stupaca se ignorira.
 - Separator `;`, `,` ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250 (izvoz s blagajne).
 - Akcija: ako je `akcijska_cijena` upisana i niža od `cijena`, u cjeniku ide akcijska cijena, „posebni oblik
   prodaje = DA“ i naziv akcije iz postavki.
@@ -55,6 +59,10 @@ prodaje; sidrena cijena; barkod; dostupnost; datum sidrene cijene; kategorija; u
 
 Javno: `/cjenik/` (kartice po objektu), `/cjenik/poslovnica-<id>/latest.csv`, `/cjenik/poslovnica-<id>/latest.xml`,
 `/cjenik/index.json` (svi objekti i datoteke).
+
+## Ovisnosti
+Čitanje Excela koristi biblioteku PhpSpreadsheet (MIT), uključenu u `vendor/`. Za CSV nije potrebna. Ako je
+`vendor/` uklonjen, plugin i dalje radi s CSV-om, a za Excel javlja da spremiš datoteku kao CSV.
 
 ## Sigurnost
 Upload samo uz prijavu i ovlast, nonce, ograničenje 20 MB, prihvaća se samo tekst/CSV koji se parsira; datoteke se
