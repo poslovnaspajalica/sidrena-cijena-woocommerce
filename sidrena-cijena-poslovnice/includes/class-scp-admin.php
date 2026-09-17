@@ -176,6 +176,10 @@ final class SCP_Admin {
 				<p class="scp-warn">Za taj dan već postoji objavljen cjenik; nova objava se dodaje, stara ostaje dostupna.</p><?php endif; ?>
 			<?php $st = $preview['stats']; ?>
 			<div class="scp-stat"><b><?php echo (int) $st['ukupno']; ?></b>artikala</div>
+			<?php
+			if ( ! empty( $st['preskoceno_zbroj'] ) ) :
+				?>
+				<div class="scp-stat"><b class="scp-warn"><?php echo (int) $st['preskoceno_zbroj']; ?></b>preskočeno (redak zbroja)</div><?php endif; ?>
 			<div class="scp-stat"><b><?php echo (int) $st['akcija']; ?></b>na akciji</div>
 			<div class="scp-stat"><b><?php echo (int) $st['nedostupno']; ?></b>nedostupno</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_sidrene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_sidrene']; ?></b>bez sidrene cijene</div>

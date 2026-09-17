@@ -213,12 +213,13 @@ final class SCP_Convert {
 		$map     = $parsed['map'];
 		$g       = static fn( array $r, string $f ): ?string => isset( $map[ $f ], $r[ $map[ $f ] ] ) ? (string) $r[ $map[ $f ] ] : null;
 		$stats   = [
-			'ukupno'      => 0,
-			'akcija'      => 0,
-			'bez_sidrene' => 0,
-			'bez_cijene'  => 0,
-			'bez_barkoda' => 0,
-			'nedostupno'  => 0,
+			'ukupno'           => 0,
+			'akcija'           => 0,
+			'bez_sidrene'      => 0,
+			'bez_cijene'       => 0,
+			'bez_barkoda'      => 0,
+			'nedostupno'       => 0,
+			'preskoceno_zbroj' => 0,
 		];
 		$default = (string) ( $s['dostupnost_zadano'] ?? 'dostupno' );
 		$out     = [];
@@ -228,6 +229,11 @@ final class SCP_Convert {
 			$naziv    = trim( (string) $g( $r, 'naziv' ) );
 			$barkod   = trim( (string) $g( $r, 'barkod' ) );
 			if ( $naziv === '' && $barkod === '' ) {
+				continue;
+			}
+			// Redci zbroja iz izvještaja blagajne (UKUPNO, TOTAL...) nisu artikli.
+			if ( $barkod === '' && preg_match( '/^\s*(ukupno|sveukupno|total|zbroj|suma|summe)\b/iu', $naziv ) ) {
+				++$stats['preskoceno_zbroj'];
 				continue;
 			}
 			if ( $cijena === null ) {
