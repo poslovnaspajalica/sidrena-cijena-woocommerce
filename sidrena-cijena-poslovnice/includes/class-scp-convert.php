@@ -319,12 +319,18 @@ final class SCP_Convert {
 			$sd      = trim( (string) $g( $r, 'sidrena_datum' ) );
 			$dost    = self::availability( $g( $r, 'dostupnost' ), $default );
 
+			$jedinica = trim( (string) $g( $r, 'jedinica' ) );
+			$cij_jm   = self::num( $g( $r, 'cijena_jedinica' ) );
+			if ( $cij_jm === null && $jedinica !== '' && preg_match( '/^(kom|komad|kom\.|pcs|pc|st|stk)$/iu', $jedinica ) ) {
+				// Roba na komad: cijena za jedinicu mjere jednaka je maloprodajnoj cijeni po komadu.
+				$cij_jm = $on_sale ? $akcijska : $cijena;
+			}
 			$row = [
 				'naziv'                         => $naziv,
 				'sifra'                         => trim( (string) $g( $r, 'sifra' ) ),
 				'marka'                         => trim( (string) $g( $r, 'marka' ) ),
-				'jedinica_mjere'                => trim( (string) $g( $r, 'jedinica' ) ),
-				'cijena_za_jedinicu_mjere'      => self::fmt( self::num( $g( $r, 'cijena_jedinica' ) ), $s ),
+				'jedinica_mjere'                => $jedinica,
+				'cijena_za_jedinicu_mjere'      => self::fmt( $cij_jm, $s ),
 				'maloprodajna_cijena'           => self::fmt( $on_sale ? $akcijska : $cijena, $s ),
 				'posebni_oblik_prodaje'         => $on_sale ? 'DA' : 'NE',
 				'naziv_posebnog_oblika_prodaje' => $on_sale ? ( trim( (string) $g( $r, 'naziv_akcije' ) ) ?: (string) $s['naziv_akcije'] ) : '',
