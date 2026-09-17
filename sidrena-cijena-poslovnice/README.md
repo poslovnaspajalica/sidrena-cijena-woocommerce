@@ -33,7 +33,9 @@ Obrada je čista pretvorba datoteke bez upita u bazu; i 25.000 redaka prođe u n
 ## Ulazni CSV
 
 Obvezni stupci: `barkod`, `naziv`, `cijena`. Neobavezni: `akcijska_cijena`, `dostupnost`, `sidrena_cijena`,
-`sifra`, `marka`, `jedinica_mjere`, `cijena_za_jedinicu_mjere`. Predložak se preuzima u adminu.
+`sifra`, `marka`, `jedinica_mjere`, `cijena_za_jedinicu_mjere`. Predložak se preuzima u adminu. Izlazna datoteka
+ima 14 stupaca propisanih Odlukom: one koje ne šaljete plugin računa (maloprodajna cijena, oznaka i naziv akcije)
+ili ostavlja prazne (kategorija, url), a datum sidrene cijene upisuje iz postavki.
 
 - Nazivi stupaca prepoznaju se automatski i po sinonimima (EAN, GTIN, MPC, „MPC s PDV-om“, „Naziv artikla“,
   akcija, zaliha, stanje...). Redoslijed nije bitan, višak stupaca se ignorira.

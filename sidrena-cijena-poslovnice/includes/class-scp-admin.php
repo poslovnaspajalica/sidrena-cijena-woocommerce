@@ -239,7 +239,7 @@ final class SCP_Admin {
 					<tr><th><label for="scp-dan">Cjenik vrijedi za dan</label></th><td><input type="date" name="vrijedi_za" id="scp-dan" value="<?php echo esc_attr( $pre_day ); ?>" max="<?php echo esc_attr( wp_date( 'Y-m-d' ) ); ?>" required>
 						<p class="description">Zadano danas. Za nadopunu propuštenog dana odaberi taj dan. Naziv datoteke uvijek nosi stvarno vrijeme objave (točka VI. Odluke), a dan za koji vrijedi zapisan je u XML-u i na javnoj stranici.</p></td></tr>
 					<tr><th><label for="scp-csv">CSV datoteka</label></th><td><input type="file" name="csv" id="scp-csv" accept=".csv,.txt,text/csv,text/plain" required>
-						<p class="description">Obvezni stupci: <code>barkod</code>, <code>naziv</code>, <code>cijena</code>. Neobavezni: <code>akcijska_cijena</code>, <code>dostupnost</code>, <code>sidrena_cijena</code>, <code>sifra</code>, <code>marka</code>. Nazivi stupaca se prepoznaju automatski (npr. EAN, MPC, akcija, zaliha). Separator ; ili , ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250.
+						<p class="description">Obvezni stupci: <code>barkod</code>, <code>naziv</code>, <code>cijena</code>. Neobavezni: <code>akcijska_cijena</code>, <code>dostupnost</code>, <code>sidrena_cijena</code>, <code>sifra</code>, <code>marka</code>, <code>jedinica_mjere</code>, <code>cijena_za_jedinicu_mjere</code>. Izlazna datoteka ima 14 stupaca propisanih Odlukom; one koje ne šaljete plugin računa (maloprodajna cijena, oznaka akcije) ili ostavlja prazne. Nazivi stupaca se prepoznaju automatski (npr. EAN, MPC, akcija, zaliha). Separator ; ili , ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250.
 						<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_template' ), 'scp_template' ) ); ?>">Preuzmi predložak CSV-a</a></p></td></tr>
 				</table>
 				<?php submit_button( 'Učitaj i pregledaj', 'secondary', 'submit', false ); ?>
@@ -498,10 +498,11 @@ final class SCP_Admin {
 		header( 'Content-Type: text/csv; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename="predlozak-cjenik-poslovnica.csv"' );
 		echo "\xEF\xBB\xBF";
-		echo "barkod;naziv;cijena;akcijska_cijena;dostupnost;sidrena_cijena;sifra;marka\n";
-		echo "3859890000011;\"Primjer proizvod A (CD)\";10,49;;dostupno;10,49;ART-0001;Primjer marka\n";
-		echo "3859890000028;\"Primjer proizvod B (LP)\";19,00;15,00;dostupno;19,00;ART-0002;\n";
-		echo "3859890000035;\"Primjer proizvod C (majica)\";9,00;;nedostupno;9,00;;\n";
+		echo "barkod;naziv;cijena;akcijska_cijena;dostupnost;sidrena_cijena;sifra;marka;jedinica_mjere;cijena_za_jedinicu_mjere\n";
+		echo "3859890000011;\"Primjer proizvod A (CD)\";10,49;;dostupno;10,49;ART-0001;Primjer marka;;\n";
+		echo "3859890000028;\"Primjer proizvod B (LP)\";19,00;15,00;dostupno;19,00;ART-0002;;;\n";
+		echo "3859890000035;\"Primjer proizvod C (majica)\";9,00;;nedostupno;9,00;;;;\n";
+		echo "3859890000042;\"Primjer proizvod D (kava 250 g)\";4,50;;dostupno;4,50;;;kg;18,00\n";
 		exit;
 	}
 }
