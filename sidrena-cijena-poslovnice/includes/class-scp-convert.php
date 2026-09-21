@@ -292,10 +292,12 @@ final class SCP_Convert {
 			'bez_sidrene'      => 0,
 			'bez_cijene'       => 0,
 			'bez_barkoda'      => 0,
+			'bez_marke'        => 0,
 			'nedostupno'       => 0,
 			'preskoceno_zbroj' => 0,
 		];
 		$default = (string) ( $s['dostupnost_zadano'] ?? 'dostupno' );
+		$marka_zadano = trim( (string) ( $s['marka_zadano'] ?? '' ) );
 		$out     = [];
 		foreach ( $parsed['rows'] as $r ) {
 			$cijena   = self::num( $g( $r, 'cijena' ) );
@@ -328,7 +330,7 @@ final class SCP_Convert {
 			$row = [
 				'naziv'                         => $naziv,
 				'sifra'                         => trim( (string) $g( $r, 'sifra' ) ),
-				'marka'                         => trim( (string) $g( $r, 'marka' ) ),
+				'marka'                         => trim( (string) $g( $r, 'marka' ) ) ?: $marka_zadano,
 				'jedinica_mjere'                => $jedinica,
 				'cijena_za_jedinicu_mjere'      => self::fmt( $cij_jm, $s ),
 				'maloprodajna_cijena'           => self::fmt( $on_sale ? $akcijska : $cijena, $s ),
@@ -345,6 +347,7 @@ final class SCP_Convert {
 			$stats['akcija']      += $on_sale ? 1 : 0;
 			$stats['bez_sidrene'] += $sidrena === null ? 1 : 0;
 			$stats['bez_barkoda'] += $barkod === '' ? 1 : 0;
+			$stats['bez_marke'] += $row['marka'] === '' ? 1 : 0;
 			$stats['nedostupno']  += $dost === 'nedostupno' ? 1 : 0;
 			$out[]                 = apply_filters( 'scp_output_row', $row, $r, $map );
 		}

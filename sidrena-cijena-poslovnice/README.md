@@ -46,6 +46,8 @@ ili ostavlja prazne (kategorija, url), a datum sidrene cijene upisuje iz postavk
 - Separator `;`, `,` ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250 (izvoz s blagajne).
 - Akcija: ako je `akcijska_cijena` upisana i niža od `cijena`, u cjeniku ide akcijska cijena, „posebni oblik
   prodaje = DA“ i naziv akcije iz postavki.
+- Marka: ako je u datoteci prazna ili stupca nema, upisuje se „Zadana marka“ iz postavki (prazno = ostaje prazno).
+  Pregled prije objave pokazuje koliko artikala nema marku.
 - Jedinica mjere `kom` (komad): cijena za jedinicu mjere automatski je jednaka maloprodajnoj cijeni po komadu,
   ako nije zasebno poslana. Za kg, l i slično treba poslati stupac `cijena_za_jedinicu_mjere`.
 - Dostupnost: `dostupno`/`nedostupno`, `da`/`ne`, `1`/`0`, količina (>0 = dostupno). Ako stupca nema,

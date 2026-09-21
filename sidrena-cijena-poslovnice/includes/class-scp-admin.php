@@ -184,6 +184,7 @@ final class SCP_Admin {
 			<div class="scp-stat"><b><?php echo (int) $st['nedostupno']; ?></b>nedostupno</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_sidrene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_sidrene']; ?></b>bez sidrene cijene</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_barkoda'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_barkoda']; ?></b>bez barkoda</div>
+			<div class="scp-stat"><b class="<?php echo ! empty( $st['bez_marke'] ) ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) ( $st['bez_marke'] ?? 0 ); ?></b>bez marke</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_cijene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_cijene']; ?></b>preskočeno (bez cijene)</div>
 			<?php
 			if ( $st['bez_sidrene'] ) :
@@ -326,6 +327,8 @@ final class SCP_Admin {
 					<tr><th><label>Naziv trgovca</label></th><td><input type="text" class="regular-text" name="naziv_trgovca" value="<?php echo esc_attr( $s['naziv_trgovca'] ); ?>" placeholder="<?php echo esc_attr( get_bloginfo( 'name' ) ); ?>"></td></tr>
 					<tr><th><label>Referentni datum sidrene cijene</label></th><td><input type="date" name="referentni_datum" value="<?php echo esc_attr( $s['referentni_datum'] ); ?>"> <span class="description">upisuje se uz sidrenu cijenu ako je blagajna isporuči bez datuma</span></td></tr>
 					<tr><th><label>Naziv posebnog oblika prodaje</label></th><td><input type="text" name="naziv_akcije" value="<?php echo esc_attr( $s['naziv_akcije'] ); ?>"> <span class="description">kad je akcijska cijena niža od redovne</span></td></tr>
+					<tr><th><label>Zadana marka</label></th><td><input type="text" class="regular-text" name="marka_zadano" value="<?php echo esc_attr( $s['marka_zadano'] ); ?>" placeholder="npr. razni izdavači">
+						<p class="description">Upisuje se u stupac „marka“ samo kad je u datoteci s blagajne prazna ili stupca nema. Odluka (točka III.) navodi marku kao obvezan podatak. Kod glazbenih izdanja marka je izdavač; ne upisuj naziv trgovca ako prodaješ i tuđa izdanja. Prazno = stupac ostaje prazan.</p></td></tr>
 					<tr><th><label>Dostupnost kad stupac nedostaje</label></th><td><select name="dostupnost_zadano"><option value="dostupno" <?php selected( $s['dostupnost_zadano'], 'dostupno' ); ?>>dostupno</option><option value="nedostupno" <?php selected( $s['dostupnost_zadano'], 'nedostupno' ); ?>>nedostupno</option></select></td></tr>
 					<tr><th><label>CSV separator</label></th><td><select name="csv_separator"><option value=";" <?php selected( $s['csv_separator'], ';' ); ?>>;</option><option value="," <?php selected( $s['csv_separator'], ',' ); ?>>,</option></select></td></tr>
 					<tr><th><label>Decimalni znak u cjeniku</label></th><td><select name="decimalni_znak"><option value="." <?php selected( $s['decimalni_znak'], '.' ); ?>>. (točka)</option><option value="," <?php selected( $s['decimalni_znak'], ',' ); ?>>, (zarez)</option></select></td></tr>
@@ -474,6 +477,7 @@ final class SCP_Admin {
 				'naziv_trgovca'      => sanitize_text_field( (string) ( $p['naziv_trgovca'] ?? '' ) ),
 				'referentni_datum'   => preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) ( $p['referentni_datum'] ?? '' ) ) ? (string) $p['referentni_datum'] : '2026-09-10',
 				'naziv_akcije'       => sanitize_text_field( (string) ( $p['naziv_akcije'] ?? 'Akcija' ) ) ?: 'Akcija',
+				'marka_zadano' => sanitize_text_field( (string) ( $p['marka_zadano'] ?? '' ) ),
 				'dostupnost_zadano'  => ( $p['dostupnost_zadano'] ?? '' ) === 'nedostupno' ? 'nedostupno' : 'dostupno',
 				'csv_separator'      => ( $p['csv_separator'] ?? ';' ) === ',' ? ',' : ';',
 				'decimalni_znak'     => ( $p['decimalni_znak'] ?? '.' ) === ',' ? ',' : '.',

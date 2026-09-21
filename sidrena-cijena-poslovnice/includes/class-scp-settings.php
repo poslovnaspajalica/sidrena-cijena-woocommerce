@@ -12,6 +12,7 @@ final class SCP_Settings {
 			'poslovnice'         => [], // popis poslovnica: id, naziv, oblik, adresa, oznaka, broj_pohrane
 			'referentni_datum'   => '2026-09-10',
 			'naziv_akcije'       => 'Akcija',
+			'marka_zadano' => '',
 			'csv_separator'      => ';',
 			'decimalni_znak'     => '.',
 			'retencija_dana'     => 35,
