@@ -254,9 +254,54 @@ final class SCP_Admin {
 		<?php
 	}
 
+	/** Mape u poslovnice/ koje ne pripadaju nijednoj postavljenoj poslovnici (npr. nakon gubitka postavki). */
+	private static function orphan_dirs(): array {
+		$base = SCP_Files::base_dir();
+		if ( ! is_dir( $base ) ) {
+			return [];
+		}
+		$known = array_map( static fn( $s ) => sanitize_key( $s['id'] ), SCP_Settings::stores() );
+		$out   = [];
+		foreach ( scandir( $base ) ?: [] as $d ) {
+			if ( $d === '.' || $d === '..' || $d === 'tmp' || ! is_dir( $base . $d ) || in_array( $d, $known, true ) ) {
+				continue;
+			}
+			$files = array_values( array_filter( scandir( $base . $d ) ?: [], static fn( $f ) => preg_match( '/\.(csv|xml)$/i', $f ) ) );
+			$out[ $d ] = $files;
+		}
+		return $out;
+	}
+
 	private static function tab_files(): void {
 		$stores   = SCP_Settings::stores();
 		$is_admin = current_user_can( 'manage_options' );
+		$orphans  = self::orphan_dirs();
+		if ( $orphans ) {
+			echo '<div class="notice notice-warning"><p><strong>Datoteke bez pridružene poslovnice</strong> (na disku postoje, ali u postavkama nema poslovnice s tom oznakom). Dodaj poslovnicu s istom oznakom i datoteke će se ponovno prikazati:</p><ul>';
+			foreach ( $orphans as $dir => $files ) {
+				echo '<li><code>' . esc_html( $dir ) . '</code>: ' . count( $files ) . ' datoteka' . ( $files ? ', najnovija ' . esc_html( end( $files ) ) : '' ) . '</li>';
+			}
+			echo '</ul></div>';
+		}
+		if ( $is_admin ) {
+			$backup = get_option( SCP_Settings::BACKUP, [] );
+			$u      = wp_upload_dir();
+			echo '<div class="scp-card"><h2>Dijagnostika</h2><table class="widefat striped"><tbody>';
+			$rows = [
+				'Verzija plugina'              => SCP_VERSION . ' (zapisana nadogradnja: ' . esc_html( (string) get_option( 'scp_version' ) ) . ')',
+				'PHP / WordPress'              => PHP_VERSION . ' / ' . get_bloginfo( 'version' ),
+				'Mapa cjenika'                 => SCP_Files::base_dir() . ( is_dir( SCP_Files::base_dir() ) ? ' (postoji' . ( wp_is_writable( SCP_Files::base_dir() ) ? ', zapisiva)' : ', NIJE zapisiva)' ) : ' (NE postoji)' ),
+				'Poslovnice u postavkama'      => count( $stores ) . ( $stores ? ': ' . implode( ', ', array_map( static fn( $s ) => $s['id'] . ' (' . ( $s['naziv'] ?: $s['adresa'] ) . ')', $stores ) ) : '' ),
+				'Rezervna kopija postavki'     => is_array( $backup ) ? count( $backup['poslovnice'] ?? [] ) . ' poslovnica' : 'nema',
+				'Vanjski object cache'         => wp_using_ext_object_cache() ? 'da' : 'ne',
+				'Webshop plugin'               => class_exists( 'SC_Public' ) ? 'aktivan (zajednička stranica /cjenik/)' : 'nije aktivan',
+				'Greške uploada (upload_dir)'  => ! empty( $u['error'] ) ? esc_html( (string) $u['error'] ) : 'nema',
+			];
+			foreach ( $rows as $k => $v ) {
+				echo '<tr><th style="width:240px">' . esc_html( $k ) . '</th><td>' . wp_kses_post( $v ) . '</td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
 		echo '<div class="scp-card"><p>Javna stranica: <a href="' . esc_url( SCP_Public::url() ) . '" target="_blank">' . esc_html( SCP_Public::url() ) . '</a></p></div>';
 		foreach ( $stores as $store ) {
 			$files = SCP_Files::list_files( $store['id'] );
