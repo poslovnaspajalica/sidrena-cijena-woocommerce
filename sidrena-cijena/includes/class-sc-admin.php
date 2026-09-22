@@ -376,6 +376,9 @@ final class SC_Admin {
 						</select>
 						<input type="text" name="marka_meta" placeholder="ili meta ključ, npr. _izdavac" value="">
 						<p class="description">Za ploče i CD-e: izdavač (label) ili izvođač, ovisno o strukturi shopa.</p></td></tr>
+					<tr><th><label for="marka_zadano">Zadana marka</label></th>
+						<td><input type="text" class="regular-text" name="marka_zadano" id="marka_zadano" value="<?php echo esc_attr( $s['marka_zadano'] ); ?>" placeholder="npr. razni izdavači">
+						<p class="description">Upisuje se u stupac „marka“ cjenika samo kad odabrani izvor za proizvod nema vrijednost. Odluka (točka III.) navodi marku bez ograde. Ne upisuj naziv trgovca ako prodaješ i tuđa izdanja. Prazno = stupac ostaje prazan.</p></td></tr>
 					<tr><th><label>Izvor podatka „barkod“</label></th>
 						<td><select name="barkod_izvor">
 							<option value="gtin_sku" <?php selected( $s['barkod_izvor'], 'gtin_sku' ); ?>>GTIN/EAN polje, ako je prazno onda SKU</option>
@@ -523,6 +526,7 @@ final class SC_Admin {
 				'oznaka_objekta'       => sanitize_text_field( $p['oznaka_objekta'] ?? '1' ),
 				'broj_pohrane'         => sanitize_text_field( $p['broj_pohrane'] ?? '1' ),
 				'marka_izvor'          => $marka,
+				'marka_zadano' => sanitize_text_field( (string) ( $p['marka_zadano'] ?? '' ) ),
 				'barkod_izvor'         => $barkod,
 				'jedinica_meta'        => sanitize_key( $p['jedinica_meta'] ?? '' ),
 				'cijena_jedinica_meta' => sanitize_key( $p['cijena_jedinica_meta'] ?? '' ),

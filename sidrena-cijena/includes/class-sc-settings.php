@@ -39,6 +39,7 @@ final class SC_Settings {
 			'csv_separator'        => ';',
 			'decimalni_znak'       => '.',
 			'marka_izvor'          => 'none',      // none | product_brand | pa_<atribut> | meta:<kljuc>
+			'marka_zadano' => '', // upisuje se kad izvor marke ne da vrijednost
 			'barkod_izvor'         => 'gtin_sku',  // gtin_sku | gtin | sku | meta:<kljuc>
 			'jedinica_meta'        => '',
 			'cijena_jedinica_meta' => '',

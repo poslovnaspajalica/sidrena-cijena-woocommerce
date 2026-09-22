@@ -625,6 +625,9 @@ final class SC_Export {
 				if ( $ibrand === '' && str_starts_with( (string) $s['marka_izvor'], 'meta:' ) ) {
 					$ibrand = (string) ( $meta[ $iid ][ substr( $s['marka_izvor'], 5 ) ] ?? '' );
 				}
+				if ( $ibrand === '' ) {
+					$ibrand = trim( (string) ( $s['marka_zadano'] ?? '' ) );
+				}
 				$rows[] = self::row_from_meta( $iid, (string) $item['post_title'], $im, $ibrand, $cats, $url, $excluded, $s );
 			}
 		}

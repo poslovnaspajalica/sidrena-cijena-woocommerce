@@ -80,6 +80,8 @@ i dodatne stupce (ignoriraju se), pa se može uvesti i izvoz iz ERP-a.
 - Stupci (točka III. Odluke, redom): naziv; šifra; marka; jedinica mjere; cijena za jedinicu mjere;
   maloprodajna cijena; posebni oblik prodaje (DA/NE); naziv posebnog oblika prodaje; sidrena cijena;
   barkod; dostupnost. Dodatno: datum sidrene cijene; kategorija; url.
+- Marka: izvor je WooCommerce Brands, atribut ili meta polje (Postavke). Kad izvor za proizvod nema vrijednost,
+  upisuje se „Zadana marka“ iz postavki; prazno = stupac ostaje prazan.
 - CSV: UTF-8 s BOM-om, separator `;`, sve vrijednosti u navodnicima. Decimalni znak podesiv.
 - Cijene u cjeniku su **s PDV-om** (maloprodajne), bez obzira kako su unesene u WooCommerce.
 - Generira se izravnim SQL upitima u koracima po 100 proizvoda (6 laganih upita po koraku), bez
