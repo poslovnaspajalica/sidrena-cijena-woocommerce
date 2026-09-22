@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sidrena cijena za WooCommerce
  * Description: Isticanje sidrene (dodatne) cijene uz aktualnu cijenu i objava strojno čitljivog cjenika (.csv/.xml) prema Odlukama Vlade RH (NN 101/2026) i Zakonu o iznimnim mjerama kontrole cijena (NN 40/2025).
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Poslovna spajalica
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SC_VERSION', '1.2.0' );
+define( 'SC_VERSION', '1.2.1' );
 define( 'SC_FILE', __FILE__ );
 define( 'SC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SC_URL', plugin_dir_url( __FILE__ ) );
@@ -85,6 +85,22 @@ final class Sidrena_Cijena_Plugin {
 		$saved = get_option( SC_Settings::OPTION, [] );
 		if ( is_array( $saved ) && ! isset( $saved['cron_nacin'] ) && get_option( 'sidrena_cijena_version' ) ) {
 			SC_Settings::update( [ 'cron_nacin' => 'wpcron' ] );
+		}
+		// 1.2.1: preporuka Ministarstva (18. 9. 2026.) za tekst oznake. Mijenja se samo ako je još uvijek stari zadani
+		// tekst, bez ikakve izmjene; prilagođeni tekstovi ostaju.
+		if ( is_array( $saved ) ) {
+			$stari_label = 'Sidrena cijena ({datum}): {cijena}';
+			$stari_lang  = "en: Anchor price ({datum}): {cijena}\nde: Ankerpreis ({datum}): {cijena}\nit: Prezzo di riferimento ({datum}): {cijena}";
+			$promjena    = [];
+			if ( ( $saved['label'] ?? $stari_label ) === $stari_label ) {
+				$promjena['label'] = 'Cijena na {datum}: {cijena}';
+			}
+			if ( ( $saved['label_lang'] ?? $stari_lang ) === $stari_lang ) {
+				$promjena['label_lang'] = "en: Price on {datum}: {cijena}\nde: Preis am {datum}: {cijena}\nit: Prezzo al {datum}: {cijena}";
+			}
+			if ( $promjena ) {
+				SC_Settings::update( $promjena );
+			}
 		}
 		SC_Export::schedule_cron();
 		update_option( 'sidrena_cijena_version', SC_VERSION, false );
