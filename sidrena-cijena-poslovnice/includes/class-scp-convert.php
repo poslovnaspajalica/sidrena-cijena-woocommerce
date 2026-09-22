@@ -368,13 +368,13 @@ final class SCP_Convert {
 		SCP_Files::ensure_dirs( $store['id'] );
 		$dir = SCP_Files::store_dir( $store['id'] );
 		$ts  = time();
-		$csv = SCP_Files::build_filename( $store, 'csv', $ts );
-		$xml = SCP_Files::build_filename( $store, 'xml', $ts );
-		$i   = 1;
+		$seq = SCP_Files::next_seq( $store['id'] );
+		$csv = SCP_Files::build_filename( $store, 'csv', $ts, $seq );
+		$xml = SCP_Files::build_filename( $store, 'xml', $ts, $seq );
 		while ( file_exists( $dir . $csv ) || file_exists( $dir . $xml ) ) {
-			$csv = preg_replace( '/(\.csv)$/', "_{$i}$1", SCP_Files::build_filename( $store, 'csv', $ts ) );
-			$xml = preg_replace( '/(\.xml)$/', "_{$i}$1", SCP_Files::build_filename( $store, 'xml', $ts ) );
-			++$i;
+			$seq = SCP_Files::next_seq( $store['id'] );
+			$csv = SCP_Files::build_filename( $store, 'csv', $ts, $seq );
+			$xml = SCP_Files::build_filename( $store, 'xml', $ts, $seq );
 		}
 		$sep = (string) ( $s['csv_separator'] ?: ';' );
 		$fh  = fopen( $dir . $csv, 'w' );

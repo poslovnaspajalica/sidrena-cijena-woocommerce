@@ -184,6 +184,7 @@ final class SCP_Admin {
 			<div class="scp-stat"><b><?php echo (int) $st['nedostupno']; ?></b>nedostupno</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_sidrene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_sidrene']; ?></b>bez sidrene cijene</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_barkoda'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_barkoda']; ?></b>bez barkoda</div>
+			<p class="description">Barkod je po pojašnjenju Ministarstva (18. 9. 2026.) obvezan „ako je primjenjivo“: za robu koja ga nema polje ostaje prazno i ne izmišlja se.</p>
 			<div class="scp-stat"><b class="<?php echo ! empty( $st['bez_marke'] ) ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) ( $st['bez_marke'] ?? 0 ); ?></b>bez marke</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_cijene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_cijene']; ?></b>preskočeno (bez cijene)</div>
 			<?php
@@ -294,16 +295,16 @@ final class SCP_Admin {
 			<input type="hidden" name="action" value="scp_save_stores">
 			<div class="scp-card">
 				<h2>Poslovnice (prodajni objekti)</h2>
-				<p class="description">Podaci ulaze u naziv datoteke prema točki VI. Odluke: oblik prodajnog objekta, adresa, oznaka objekta, broj pohrane. Prazan naziv i adresa = poslovnica se briše. Datoteke već objavljenih cjenika ostaju.</p>
+				<p class="description">Podaci ulaze u naziv datoteke prema točki VI. Odluke i pojašnjenju Ministarstva od 18. 9. 2026.: oblik prodajnog objekta, adresa, oznaka objekta (npr. P-01), broj pohrane (redni broj datoteke, sam se povećava) te datum i vrijeme slanja. Primjer iz pojašnjenja: <code>prodavaonica_Ilica 150 Zagreb_P-01_104_01.10.2026_07:45</code>. Prazan naziv i adresa = poslovnica se briše. Datoteke već objavljenih cjenika ostaju.</p>
 				<table class="widefat striped">
-					<thead><tr><th>Naziv</th><th>Oblik objekta</th><th>Adresa</th><th>Oznaka objekta</th><th>Broj pohrane</th><th>Primjer naziva datoteke</th></tr></thead>
+					<thead><tr><th>Naziv</th><th>Oblik objekta</th><th>Adresa</th><th>Oznaka objekta</th><th>Sljedeći broj pohrane</th><th>Primjer naziva datoteke</th></tr></thead>
 					<tbody>
 					<?php foreach ( $stores as $i => $s ) : ?>
 					<tr>
 						<td><input type="hidden" name="p[<?php echo (int) $i; ?>][id]" value="<?php echo esc_attr( $s['id'] ); ?>"><input type="text" name="p[<?php echo (int) $i; ?>][naziv]" value="<?php echo esc_attr( $s['naziv'] ); ?>" placeholder="npr. Poslovnica Ilica"></td>
 						<td><input type="text" name="p[<?php echo (int) $i; ?>][oblik]" value="<?php echo esc_attr( $s['oblik'] ); ?>" placeholder="prodavaonica"></td>
 						<td><input type="text" name="p[<?php echo (int) $i; ?>][adresa]" value="<?php echo esc_attr( $s['adresa'] ); ?>" placeholder="Ilica 1, Zagreb" style="width:100%"></td>
-						<td><input type="text" name="p[<?php echo (int) $i; ?>][oznaka]" value="<?php echo esc_attr( $s['oznaka'] ); ?>" placeholder="P1" size="6"></td>
+						<td><input type="text" name="p[<?php echo (int) $i; ?>][oznaka]" value="<?php echo esc_attr( $s['oznaka'] ); ?>" placeholder="P-01" size="6"></td>
 						<td><input type="text" name="p[<?php echo (int) $i; ?>][broj_pohrane]" value="<?php echo esc_attr( $s['broj_pohrane'] ); ?>" size="4"></td>
 						<td><code><?php echo $s['id'] ? esc_html( SCP_Files::build_filename( $s, 'csv' ) ) : '-'; ?></code></td>
 					</tr>

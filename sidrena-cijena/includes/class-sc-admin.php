@@ -273,7 +273,7 @@ final class SC_Admin {
 						<p class="description">Odluka NN 101/2026: 10. 9. 2026.</p></td></tr>
 					<tr><th><label for="label">Tekst oznake</label></th>
 						<td><input type="text" class="regular-text" name="label" id="label" value="<?php echo esc_attr( $s['label'] ); ?>">
-						<p class="description">Dostupno: <code>{datum}</code> (10. 9. 2026.), <code>{datum_iso}</code> (2026-09-10), <code>{cijena}</code>. Primjer prikaza: 
+						<p class="description">Ministarstvo (18. 9. 2026.) preporučuje uz dodatnu cijenu navesti samo datum, npr. „Cijena na 10. 9. 2026.“, bez riječi „sidrena“. Dostupno: <code>{datum}</code> (10. 9. 2026.), <code>{datum_iso}</code> (2026-09-10), <code>{cijena}</code>. Primjer prikaza: 
 						<?php
 						echo wp_kses_post(
 							strtr(
@@ -343,13 +343,13 @@ final class SC_Admin {
 
 			<div class="sc-card">
 				<h2>Cjenik: podaci o prodajnom objektu (naziv datoteke)</h2>
-				<p class="description">Odluka, točka VI.: naziv datoteke sadrži oblik prodajnog objekta, adresu, oznaku objekta, broj pohrane i vremensku oznaku. Rezultat: <code><?php echo esc_html( SC_Export::build_filename( 'csv' ) ); ?></code></p>
+				<p class="description">Odluka, točka VI. i pojašnjenje Ministarstva od 18. 9. 2026.: naziv datoteke sadrži oblik prodajnog objekta, adresu, oznaku objekta (npr. P-01), broj pohrane (redni broj datoteke) te datum i vrijeme slanja. Primjer iz pojašnjenja: <code>prodavaonica_Ilica 150 Zagreb_P-01_104_01.10.2026_07:45</code>. Rezultat ovdje: <code><?php echo esc_html( SC_Export::build_filename( 'csv' ) ); ?></code></p>
 				<table class="form-table">
 					<tr><th><label>Naziv trgovca</label></th><td><input type="text" class="regular-text" name="naziv_trgovca" value="<?php echo esc_attr( $s['naziv_trgovca'] ); ?>" placeholder="<?php echo esc_attr( get_bloginfo( 'name' ) ); ?>"></td></tr>
 					<tr><th><label>Oblik prodajnog objekta</label></th><td><input type="text" name="oblik_objekta" value="<?php echo esc_attr( $s['oblik_objekta'] ); ?>"> <span class="description">npr. webshop, internetska-trgovina</span></td></tr>
 					<tr><th><label>Adresa</label></th><td><input type="text" class="regular-text" name="adresa" value="<?php echo esc_attr( $s['adresa'] ); ?>" placeholder="Ulica 1, Zagreb ili www.domena.hr"></td></tr>
 					<tr><th><label>Oznaka objekta</label></th><td><input type="text" name="oznaka_objekta" value="<?php echo esc_attr( $s['oznaka_objekta'] ); ?>"></td></tr>
-					<tr><th><label>Broj pohrane</label></th><td><input type="text" name="broj_pohrane" value="<?php echo esc_attr( $s['broj_pohrane'] ); ?>"></td></tr>
+					<tr><th><label>Broj pohrane (sljedeći)</label></th><td><input type="number" min="1" name="broj_pohrane" value="<?php echo (int) $s['broj_pohrane']; ?>" style="width:90px"> <span class="description">Pojašnjenje Ministarstva (18. 9. 2026.): broj pohrane je redni broj generirane datoteke. Plugin ga sam povećava nakon svake objave; ovdje se može postaviti početni broj.</span></td></tr>
 				</table>
 			</div>
 
@@ -524,7 +524,7 @@ final class SC_Admin {
 				'oblik_objekta'        => sanitize_text_field( $p['oblik_objekta'] ?? 'webshop' ),
 				'adresa'               => sanitize_text_field( $p['adresa'] ?? '' ),
 				'oznaka_objekta'       => sanitize_text_field( $p['oznaka_objekta'] ?? '1' ),
-				'broj_pohrane'         => sanitize_text_field( $p['broj_pohrane'] ?? '1' ),
+				'broj_pohrane'         => (string) max( 1, (int) ( $p['broj_pohrane'] ?? 1 ) ),
 				'marka_izvor'          => $marka,
 				'marka_zadano' => sanitize_text_field( (string) ( $p['marka_zadano'] ?? '' ) ),
 				'barkod_izvor'         => $barkod,

@@ -52,7 +52,9 @@ jezike formatira prema WordPress formatu datuma. Filteri: `sidrena_cijena_curren
 ## Što plugin radi
 
 ### Isticanje
-- Ispod svake cijene dodaje npr. `Sidrena cijena (10. 9. 2026.): 27,00 €` (tekst je podesiv).
+- Ispod svake cijene dodaje npr. `Cijena na 10. 9. 2026.: 27,00 €` (tekst je podesiv). Ministarstvo u pojašnjenju od
+  18. 9. 2026. preporučuje uz dodatnu cijenu navesti samo mjerodavni datum, bez riječi „sidrena“; postojeće instalacije
+  zadržavaju svoj tekst dok ga ne promijene u Postavkama.
 - Radi na stranici proizvoda, listinzima, pretrazi, povezanim proizvodima, widgetima i svugdje gdje tema
   koristi standardni `get_price_html()`.
 - Varijabilni proizvodi: raspon sidrenih cijena na roditelju, točna cijena po varijaciji.
@@ -75,7 +77,9 @@ proizvodi koji ne postoje u webshopu se preskaču i ispisuju. Prihvaća decimaln
 i dodatne stupce (ignoriraju se), pa se može uvesti i izvoz iz ERP-a.
 
 ### Cjenik
-- Datoteke: `wp-content/uploads/sidrena-cijena/cjenik/{oblik}_{adresa}_{oznaka}_{broj-pohrane}_{GGGGMMDD_HHMM}.csv|.xml`
+- Datoteke: `wp-content/uploads/sidrena-cijena/cjenik/{oblik}_{adresa}_{oznaka}_{broj-pohrane}_{DD.MM.GGGG_HH-MM}.csv|.xml`,
+  npr. `webshop_ilica-150-zagreb_P-01_104_01.10.2026_07-45.csv`. Prati primjer iz pojašnjenja Ministarstva gospodarstva
+  od 18. 9. 2026. (KLASA 330-01/25-01/13): broj pohrane je redni broj generirane datoteke i sam se povećava.
 - Javno: `/cjenik/` (popis), `/cjenik/latest.csv`, `/cjenik/latest.xml`, `/cjenik/index.json`.
 - Stupci (točka III. Odluke, redom): naziv; šifra; marka; jedinica mjere; cijena za jedinicu mjere;
   maloprodajna cijena; posebni oblik prodaje (DA/NE); naziv posebnog oblika prodaje; sidrena cijena;

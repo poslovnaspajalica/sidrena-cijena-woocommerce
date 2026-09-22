@@ -13,8 +13,8 @@ final class SC_Settings {
 			'alt_datum'            => '2025-05-02',
 			'alt_kategorije'       => [],
 			'izuzete_kategorije'   => [],
-			'label'                => 'Sidrena cijena ({datum}): {cijena}',
-			'label_lang'           => "en: Anchor price ({datum}): {cijena}\nde: Ankerpreis ({datum}): {cijena}\nit: Prezzo di riferimento ({datum}): {cijena}",
+			'label'                => 'Cijena na {datum}: {cijena}',
+			'label_lang'           => "en: Price on {datum}: {cijena}\nde: Preis am {datum}: {cijena}\nit: Prezzo al {datum}: {cijena}",
 			'label_loop'           => '',   // kraći tekst za listinge; prazno = isti kao label
 			'label_loop_lang'      => '',
 			'font_size'            => '0.7em',

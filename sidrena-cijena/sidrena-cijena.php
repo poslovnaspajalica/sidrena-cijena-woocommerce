@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sidrena cijena za WooCommerce
  * Description: Isticanje sidrene (dodatne) cijene uz aktualnu cijenu i objava strojno čitljivog cjenika (.csv/.xml) prema Odlukama Vlade RH (NN 101/2026) i Zakonu o iznimnim mjerama kontrole cijena (NN 40/2025).
- * Version: 1.1.6
+ * Version: 1.2.0
  * Author: Poslovna spajalica
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SC_VERSION', '1.1.6' );
+define( 'SC_VERSION', '1.2.0' );
 define( 'SC_FILE', __FILE__ );
 define( 'SC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SC_URL', plugin_dir_url( __FILE__ ) );

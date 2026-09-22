@@ -11,7 +11,9 @@ točki VI. Odluke i objavi na stranici `/cjenik/`. Radi samostalno (ne treba Woo
 
 1. Instaliraj zip kroz Dodaci → Dodaj novi → Prenesi dodatak i aktiviraj. Potreban PHP 8.1+, WordPress 6.5+.
 2. **Cjenik poslovnica → Poslovnice**: za svaku poslovnicu upiši naziv, oblik objekta (prodavaonica), adresu,
-   oznaku i broj pohrane. Od toga se gradi naziv datoteke, npr. `prodavaonica_ilica-1-zagreb_p1_1_20261001_0730.csv`.
+   oznaku (npr. P-01) i početni broj pohrane. Od toga se gradi naziv datoteke, npr.
+   `prodavaonica_ilica-150-zagreb_P-01_104_01.10.2026_07-45.csv`, prema primjeru iz pojašnjenja Ministarstva gospodarstva
+   od 18. 9. 2026. Broj pohrane je redni broj datoteke i sam se povećava sa svakom objavom.
 3. **Postavke**: naziv trgovca, podsjetnik e-mailom (zadano 07:00 ako neka poslovnica nema današnji cjenik).
 4. Djelatnicima u poslovnicama dodijeli ulogu **Cjenik poslovnice**: vide samo objavu i popis datoteka, ne i
    ostatak WordPressa. Administratori i voditelji trgovine imaju pristup automatski.
@@ -52,6 +54,7 @@ ili ostavlja prazne (kategorija, url), a datum sidrene cijene upisuje iz postavk
   ako nije zasebno poslana. Za kg, l i slično treba poslati stupac `cijena_za_jedinicu_mjere`.
 - Dostupnost: `dostupno`/`nedostupno`, `da`/`ne`, `1`/`0`, količina (>0 = dostupno). Ako stupca nema,
   vrijedi zadana vrijednost iz postavki.
+- **Barkod**: po pojašnjenju Ministarstva od 18. 9. 2026. obvezan je „ako je primjenjivo“; roba bez barkoda ima prazno polje.
 - **Sidrena cijena**: Odluka (točka III.) traži je u cjeniku. Ako je blagajna isporuči, prenosi se; ako ne,
   stupac ostaje prazan i pregled to prikaže kao upozorenje. Objava nije blokirana.
 

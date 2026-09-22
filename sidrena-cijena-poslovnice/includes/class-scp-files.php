@@ -53,17 +53,43 @@ final class SCP_Files {
 		}
 	}
 
-	/** Naziv datoteke po točki VI. Odluke. */
-	public static function build_filename( array $store, string $ext, ?int $ts = null ): string {
+	/** Oznaka objekta: slova, znamenke i crtica, zadržava velika slova (npr. P-01). */
+	public static function clean_code( string $v, string $fallback ): string {
+		$v = preg_replace( '/[^A-Za-z0-9\-]+/', '-', str_replace( [ ' ', '_' ], '-', trim( $v ) ) ) ?? '';
+		$v = trim( $v, '-' );
+		return $v !== '' ? $v : $fallback;
+	}
+
+	/**
+	 * Naziv datoteke po točki VI. Odluke i pojašnjenju Ministarstva (18. 9. 2026.):
+	 * oblik_adresa_oznaka_brojpohrane_datum_vrijeme, npr. prodavaonica_ilica-150-zagreb_P-01_104_01.10.2026_07-45.csv
+	 */
+	public static function build_filename( array $store, string $ext, ?int $ts = null, ?int $seq = null ): string {
 		$ts    = $ts ?? time();
+		$seq   = $seq ?? max( 1, (int) ( $store['broj_pohrane'] ?? 1 ) );
 		$parts = [
 			sanitize_title( (string) ( $store['oblik'] ?? '' ) ) ?: 'prodavaonica',
 			sanitize_title( (string) ( $store['adresa'] ?? '' ) ) ?: 'adresa',
-			sanitize_title( (string) ( $store['oznaka'] ?? '' ) ) ?: sanitize_title( $store['id'] ),
-			sanitize_title( (string) ( $store['broj_pohrane'] ?? '' ) ) ?: '1',
-			wp_date( 'Ymd_Hi', $ts ),
+			self::clean_code( (string) ( $store['oznaka'] ?? '' ), strtoupper( sanitize_key( (string) $store['id'] ) ) ),
+			(string) $seq,
+			wp_date( 'd.m.Y_H-i', $ts ),
 		];
 		return implode( '_', $parts ) . '.' . $ext;
+	}
+
+	/** Sljedeći broj pohrane za poslovnicu i povećanje brojača. */
+	public static function next_seq( string $store_id ): int {
+		$stores = SCP_Settings::stores();
+		$seq    = 1;
+		foreach ( $stores as &$st ) {
+			if ( $st['id'] === $store_id ) {
+				$seq                = max( 1, (int) ( $st['broj_pohrane'] ?? 1 ) );
+				$st['broj_pohrane'] = (string) ( $seq + 1 );
+			}
+		}
+		unset( $st );
+		SCP_Settings::update( [ 'poslovnice' => $stores ] );
+		return $seq;
 	}
 
 	/* ---------- Manifest: za koji dan datoteka vrijedi ---------- */

@@ -130,15 +130,28 @@ final class SC_Export {
 
 	/* ---------- Naziv datoteke ---------- */
 
-	public static function build_filename( string $ext, ?int $ts = null ): string {
+	/** Oznaka objekta: slova, znamenke i crtica, zadržava velika slova (npr. P-01). */
+	public static function clean_code( string $v, string $fallback ): string {
+		$v = preg_replace( '/[^A-Za-z0-9\-]+/', '-', str_replace( [ ' ', '_' ], '-', trim( $v ) ) ) ?? '';
+		$v = trim( $v, '-' );
+		return $v !== '' ? $v : $fallback;
+	}
+
+	/**
+	 * Naziv datoteke po točki VI. Odluke i pojašnjenju Ministarstva (18. 9. 2026.):
+	 * oblik_adresa_oznaka_brojpohrane_datum_vrijeme, npr. webshop_ilica-150-zagreb_P-01_104_01.10.2026_07-45.csv
+	 * Broj pohrane je redni broj generirane datoteke.
+	 */
+	public static function build_filename( string $ext, ?int $ts = null, ?int $seq = null ): string {
 		$s     = SC_Settings::all();
 		$ts    = $ts ?? time();
+		$seq   = $seq ?? max( 1, (int) $s['broj_pohrane'] );
 		$parts = [
 			sanitize_title( (string) $s['oblik_objekta'] ) ?: 'webshop',
 			sanitize_title( (string) $s['adresa'] ) ?: 'adresa',
-			sanitize_title( (string) $s['oznaka_objekta'] ) ?: '1',
-			sanitize_title( (string) $s['broj_pohrane'] ) ?: '1',
-			wp_date( 'Ymd_Hi', $ts ),
+			self::clean_code( (string) $s['oznaka_objekta'], 'P-01' ),
+			(string) $seq,
+			wp_date( 'd.m.Y_H-i', $ts ),
 		];
 		return implode( '_', $parts ) . '.' . $ext;
 	}
@@ -247,15 +260,17 @@ final class SC_Export {
 	private static function finish( array $state ): array {
 		file_put_contents( $state['xml_tmp'], "</cjenik>\n", FILE_APPEND );
 
-		$ts       = time();
-		$csv_name = self::build_filename( 'csv', $ts );
-		$xml_name = self::build_filename( 'xml', $ts );
-		$i        = 1;
+		$ts  = time();
+		$seq = max( 1, (int) SC_Settings::get( 'broj_pohrane' ) );
+		// Broj pohrane = redni broj datoteke; raste sa svakom objavom, pa su nazivi uvijek jedinstveni.
+		$csv_name = self::build_filename( 'csv', $ts, $seq );
+		$xml_name = self::build_filename( 'xml', $ts, $seq );
 		while ( file_exists( self::files_dir() . $csv_name ) || file_exists( self::files_dir() . $xml_name ) ) {
-			$csv_name = preg_replace( '/(\.csv)$/', "_{$i}$1", self::build_filename( 'csv', $ts ) );
-			$xml_name = preg_replace( '/(\.xml)$/', "_{$i}$1", self::build_filename( 'xml', $ts ) );
-			++$i;
+			++$seq;
+			$csv_name = self::build_filename( 'csv', $ts, $seq );
+			$xml_name = self::build_filename( 'xml', $ts, $seq );
 		}
+		SC_Settings::update( [ 'broj_pohrane' => (string) ( $seq + 1 ) ] );
 		rename( $state['csv_tmp'], self::files_dir() . $csv_name );
 		rename( $state['xml_tmp'], self::files_dir() . $xml_name );
 
