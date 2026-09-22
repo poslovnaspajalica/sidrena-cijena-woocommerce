@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sidrena cijena - cjenik poslovnica
  * Description: Dnevna objava strojno čitljivog cjenika (.csv/.xml) za fizičke poslovnice prema Odluci NN 101/2026: ručni upload CSV-a ili Excela s blagajne, pretvorba u propisanu strukturu, objava na stranici /cjenik/. Radi samostalno ili uz plugin "Sidrena cijena za WooCommerce".
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Poslovna spajalica
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SCP_VERSION', '1.2.0' );
+define( 'SCP_VERSION', '1.2.1' );
 define( 'SCP_FILE', __FILE__ );
 define( 'SCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SCP_URL', plugin_dir_url( __FILE__ ) );
@@ -39,9 +39,34 @@ final class Sidrena_Cijena_Poslovnice_Plugin {
 	}
 
 	public static function bootstrap(): void {
+		self::maybe_upgrade();
 		SCP_Files::init();
 		SCP_Admin::init();
 		SCP_Public::init();
+	}
+
+	/** Jednokratne radnje pri promjeni verzije (nadogradnja zipom ne pokreće aktivaciju). */
+	private static function maybe_upgrade(): void {
+		if ( get_option( 'scp_version' ) === SCP_VERSION ) {
+			return;
+		}
+		if ( ! get_option( SCP_Settings::OPTION ) ) {
+			update_option( SCP_Settings::OPTION, SCP_Settings::defaults(), false );
+		}
+		SCP_Files::ensure_dirs();
+		SCP_Files::schedule_reminder();
+		// Rute /cjenik/ se mogu promijeniti između verzija; osvježi rewrite pravila nakon što su registrirana.
+		add_action(
+			'init',
+			static function (): void {
+				if ( ! class_exists( 'SC_Public' ) ) {
+					SCP_Public::register_rewrites();
+				}
+				flush_rewrite_rules();
+			},
+			99
+		);
+		update_option( 'scp_version', SCP_VERSION, false );
 	}
 
 	public static function activate(): void {
