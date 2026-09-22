@@ -312,6 +312,7 @@ final class SCP_Admin {
 					</tbody>
 				</table>
 			</div>
+			<p><label><input type="checkbox" name="potvrdi_brisanje" value="1"> Potvrđujem brisanje svih poslovnica (samo ako je tablica namjerno ispražnjena)</label></p>
 			<?php submit_button( 'Spremi poslovnice' ); ?>
 		</form>
 		<?php
@@ -458,6 +459,9 @@ final class SCP_Admin {
 				'oznaka'       => sanitize_text_field( (string) ( $p['oznaka'] ?? '' ) ),
 				'broj_pohrane' => sanitize_text_field( (string) ( $p['broj_pohrane'] ?? '1' ) ) ?: '1',
 			];
+		}
+		if ( ! $out && SCP_Settings::stores() && empty( $_POST['potvrdi_brisanje'] ) ) {
+			self::redirect( 'poslovnice', 'Sve poslovnice bi bile obrisane. Ako to stvarno želiš, označi potvrdu ispod tablice i spremi ponovno.', true );
 		}
 		SCP_Settings::update( [ 'poslovnice' => $out ] );
 		foreach ( $out as $s ) {

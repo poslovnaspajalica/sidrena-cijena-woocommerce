@@ -33,8 +33,30 @@ final class SCP_Settings {
 		return self::all()[ $key ] ?? null;
 	}
 
+	public const BACKUP = 'scp_settings_backup';
+
 	public static function update( array $data ): void {
-		update_option( self::OPTION, array_merge( self::all(), $data ), false );
+		$all = array_merge( self::all(), $data );
+		update_option( self::OPTION, $all, false );
+		// Rezervna kopija: ako glavne postavke nestanu (nadogradnja, čišćenje baze, keš), vraćaju se odavde.
+		update_option( self::BACKUP, $all, false );
+	}
+
+	/**
+	 * Vrati postavke iz rezervne kopije ako glavne nedostaju ili su bez poslovnica, a kopija ih ima.
+	 * Vraća true ako je nešto vraćeno.
+	 */
+	public static function restore_if_missing(): bool {
+		$main   = get_option( self::OPTION, null );
+		$backup = get_option( self::BACKUP, null );
+		if ( ! is_array( $backup ) || empty( $backup['poslovnice'] ) ) {
+			return false;
+		}
+		if ( ! is_array( $main ) || empty( $main['poslovnice'] ) ) {
+			update_option( self::OPTION, array_merge( is_array( $main ) ? $main : [], $backup ), false );
+			return true;
+		}
+		return false;
 	}
 
 	/** @return array<int, array> */
