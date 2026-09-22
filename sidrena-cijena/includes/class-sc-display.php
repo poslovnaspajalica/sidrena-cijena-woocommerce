@@ -160,6 +160,12 @@ final class SC_Display {
 		}
 
 		$s = SC_Snapshot::get( $product );
+		if ( ! $s && SC_Settings::get( 'auto_novi' ) ) {
+			// Novi proizvod bez zabilježene sidrene (npr. unesen sinkronizacijom): zabilježi sada i prikaži.
+			SC_Snapshot::maybe_fill_new( $product->get_id() );
+			$product = wc_get_product( $product->get_id() ) ?: $product;
+			$s       = SC_Snapshot::get( $product );
+		}
 		if ( ! $s ) {
 			if ( SC_Settings::get( 'prikaz_bez_sidrene' ) === 'redovna' ) {
 				$regular = $product->get_regular_price();

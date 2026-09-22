@@ -66,7 +66,9 @@ jezike formatira prema WordPress formatu datuma. Filteri: `sidrena_cijena_curren
   listinge (npr. `Sidrena cijena: {cijena}`), puni tekst s datumom na stranici proizvoda. Klase
   `.sc-sidrena`, `.sc-sidrena--single`, `.sc-sidrena--loop`, `.sc-amount`.
 - Novi proizvodi (kreirani nakon referentnog datuma) automatski dobivaju sidrenu cijenu = prva redovna
-  cijena, s datumom kreiranja.
+  cijena, s datumom kreiranja, neovisno o načinu unosa: admin, WooCommerce uvoz, REST API ili sinkronizacija
+  koja piše izravno u bazu. Uz događaje pri spremanju, plugin radi i nadoknadu prije svakog generiranja
+  cjenika, pri otvaranju Status kartice i pri prvom prikazu proizvoda kupcu.
 - Kategorije iz stare Odluke NN 75/2025 (hrana, piće, kozmetika, čišćenje, toaletne potrepštine,
   kućanstvo) mogu zadržati referentni datum 2. 5. 2025.
 

@@ -165,6 +165,7 @@ final class SC_Export {
 
 	public static function start( string $trigger = 'manual' ): array {
 		self::ensure_dirs();
+		SC_Snapshot::fill_new_products(); // novi proizvodi bez sidrene, neovisno o načinu unosa
 		$id    = wp_generate_password( 8, false );
 		$state = [
 			'id'      => $id,

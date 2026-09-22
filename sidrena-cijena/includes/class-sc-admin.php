@@ -140,6 +140,10 @@ final class SC_Admin {
 	}
 
 	private static function tab_status(): void {
+		$novi = SC_Snapshot::fill_new_products();
+		if ( $novi ) {
+			echo '<div class="notice notice-info"><p>Zabilježena sidrena cijena za ' . (int) $novi . ' novih proizvoda (cijena prvog uvrštenja, datum kreiranja).</p></div>';
+		}
 		$st   = SC_Snapshot::stats( ! empty( $_GET['sc_fresh'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- samo osvježavanje prikaza.
 		$last = SC_Export::last();
 		$next = wp_next_scheduled( SC_Export::CRON_HOOK );
@@ -322,7 +326,8 @@ final class SC_Admin {
 						<td><label><input type="radio" name="prikaz_bez_sidrene" value="nista" <?php checked( $s['prikaz_bez_sidrene'], 'nista' ); ?>> Ne prikazuj ništa (preporučeno; upozorenje u adminu)</label><br>
 							<label><input type="radio" name="prikaz_bez_sidrene" value="redovna" <?php checked( $s['prikaz_bez_sidrene'], 'redovna' ); ?>> Prikaži trenutnu redovnu cijenu kao sidrenu</label></td></tr>
 					<tr><th>Novi proizvodi</th>
-						<td><label><input type="checkbox" name="auto_novi" value="1" <?php checked( $s['auto_novi'] ); ?>> Za proizvode kreirane nakon referentnog datuma automatski zabilježi prvu redovnu cijenu kao sidrenu (datum = datum kreiranja)</label></td></tr>
+						<td><label><input type="checkbox" name="auto_novi" value="1" <?php checked( $s['auto_novi'] ); ?>> Za proizvode kreirane nakon referentnog datuma automatski zabilježi prvu redovnu cijenu kao sidrenu (datum = datum kreiranja)</label>
+						<p class="description">Radi za proizvode unesene kroz admin, WooCommerce uvoz, REST API i sinkronizacije koje pišu izravno u bazu. Dodatna provjera ide prije svakog generiranja cjenika, pri otvaranju ove stranice i pri prvom prikazu proizvoda kupcu.</p></td></tr>
 					<tr><th><label for="izuzete_kategorije">Kategorije izuzete iz isticanja</label></th>
 						<td><select name="izuzete_kategorije[]" id="izuzete_kategorije" multiple size="6" style="min-width:300px">
 							<?php foreach ( (array) $cats as $c ) : ?>

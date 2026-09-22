@@ -54,6 +54,93 @@ final class SC_Snapshot {
 		add_action( 'woocommerce_new_product_variation', [ __CLASS__, 'maybe_fill_new' ], 20 );
 		add_action( 'woocommerce_update_product', [ __CLASS__, 'maybe_fill_new' ], 20 );
 		add_action( 'woocommerce_update_product_variation', [ __CLASS__, 'maybe_fill_new' ], 20 );
+		// Uvoznici i API koji ne prolaze kroz gornje događaje.
+		add_action( 'woocommerce_product_import_inserted_product_object', [ __CLASS__, 'maybe_fill_new_object' ], 20 );
+		add_action( 'woocommerce_rest_insert_product_object', [ __CLASS__, 'maybe_fill_new_object' ], 20 );
+		add_action( 'woocommerce_rest_insert_product_variation_object', [ __CLASS__, 'maybe_fill_new_object' ], 20 );
+		// Sinkronizacije koje pišu izravno u bazu (wp_insert_post + meta): provjera na kraju zahtjeva.
+		add_action( 'save_post_product', [ __CLASS__, 'defer_check' ], 99 );
+		add_action( 'save_post_product_variation', [ __CLASS__, 'defer_check' ], 99 );
+		add_action( 'added_post_meta', [ __CLASS__, 'on_price_meta' ], 10, 3 );
+		add_action( 'updated_post_meta', [ __CLASS__, 'on_price_meta' ], 10, 3 );
+	}
+
+	/** ID-jevi za provjeru na kraju zahtjeva (nakon što uvoznik zapiše cijenu). */
+	private static array $deferred = [];
+
+	public static function maybe_fill_new_object( $product ): void {
+		if ( $product instanceof WC_Product ) {
+			self::maybe_fill_new( $product->get_id() );
+		}
+	}
+
+	public static function defer_check( int $post_id ): void {
+		if ( ! SC_Settings::get( 'auto_novi' ) || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+		if ( ! self::$deferred ) {
+			add_action( 'shutdown', [ __CLASS__, 'run_deferred' ], 5 );
+		}
+		self::$deferred[ $post_id ] = true;
+	}
+
+	/** Cijena zapisana izravno kroz meta (uvoz/sinkronizacija): zabilježi proizvod za provjeru. */
+	public static function on_price_meta( $meta_id, $object_id, $meta_key ): void {
+		if ( $meta_key === '_regular_price' && in_array( get_post_type( (int) $object_id ), [ 'product', 'product_variation' ], true ) ) {
+			self::defer_check( (int) $object_id );
+		}
+	}
+
+	public static function run_deferred(): void {
+		$ids            = array_keys( self::$deferred );
+		self::$deferred = [];
+		foreach ( array_slice( $ids, 0, 200 ) as $id ) {
+			wp_cache_delete( $id, 'post_meta' );
+			self::maybe_fill_new( $id );
+		}
+	}
+
+	/**
+	 * Nadoknada: proizvodi kreirani nakon referentnog datuma koji nemaju sidrenu cijenu, neovisno o načinu unosa.
+	 * Jedan lagani upit; sidrena = redovna cijena, datum = datum kreiranja. Vraća broj zabilježenih.
+	 */
+	public static function fill_new_products( int $limit = 500 ): int {
+		if ( ! SC_Settings::get( 'auto_novi' ) ) {
+			return 0;
+		}
+		global $wpdb;
+		$ref  = (string) SC_Settings::get( 'referentni_datum' );
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.ID, p.post_date, rp.meta_value AS regular
+				 FROM {$wpdb->posts} p
+				 JOIN {$wpdb->postmeta} rp ON rp.post_id = p.ID AND rp.meta_key = '_regular_price' AND rp.meta_value <> ''
+				 LEFT JOIN {$wpdb->postmeta} sc ON sc.post_id = p.ID AND sc.meta_key = %s
+				 WHERE p.post_type IN ('product','product_variation')
+				   AND p.post_status NOT IN ('trash','auto-draft')
+				   AND p.post_date > %s
+				   AND (sc.meta_id IS NULL OR sc.meta_value = '')
+				 ORDER BY p.ID ASC
+				 LIMIT %d",
+				self::META_PRICE,
+				$ref . ' 23:59:59',
+				$limit
+			),
+			ARRAY_A
+		);
+		$n = 0;
+		foreach ( $rows as $r ) {
+			$id = (int) $r['ID'];
+			if ( self::reference_date_for( $id ) >= substr( (string) $r['post_date'], 0, 10 ) ) {
+				continue; // kategorija s datumom 2. 5. 2025. i proizvod stariji od toga
+			}
+			self::set( $id, (string) $r['regular'], substr( (string) $r['post_date'], 0, 10 ), 'novi' );
+			++$n;
+		}
+		if ( $n ) {
+			delete_transient( 'sc_stats' );
+		}
+		return $n;
 	}
 
 	/**
@@ -200,6 +287,11 @@ final class SC_Snapshot {
 		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders
 		$ref_date = (string) SC_Settings::get( 'referentni_datum' );
 		$alt_date = (string) SC_Settings::get( 'alt_datum' );
+		// Datum kreiranja: proizvodi uvedeni nakon referentnog datuma sidre se na dan prvog uvrštenja.
+		$created = [];
+		foreach ( $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_date FROM {$wpdb->posts} WHERE ID IN ($ph)", ...$ids ), ARRAY_A ) as $row ) { // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders -- $ph je popis %d placeholdera.
+			$created[ (int) $row['ID'] ] = substr( (string) $row['post_date'], 0, 10 );
+		}
 
 		$written = 0;
 		$skipped = 0;
@@ -211,11 +303,16 @@ final class SC_Snapshot {
 				++$skipped;
 				continue;
 			}
-			$date      = isset( $alt_ids[ $pid ] ) ? $alt_date : $ref_date;
+			$date   = isset( $alt_ids[ $pid ] ) ? $alt_date : $ref_date;
+			$source = 'snapshot';
+			if ( isset( $created[ $pid ] ) && $created[ $pid ] > $date ) {
+				$date   = $created[ $pid ];
+				$source = 'novi';
+			}
 			$price     = wc_format_decimal( (string) $row['meta_value'] );
 			$values[]  = $wpdb->prepare( '(%d,%s,%s)', $pid, self::META_PRICE, $price );
 			$values[]  = $wpdb->prepare( '(%d,%s,%s)', $pid, self::META_DATE, $date );
-			$values[]  = $wpdb->prepare( '(%d,%s,%s)', $pid, self::META_SRC, 'snapshot' );
+			$values[]  = $wpdb->prepare( '(%d,%s,%s)', $pid, self::META_SRC, $source );
 			$touched[] = $pid;
 			++$written;
 		}
