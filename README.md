@@ -1,6 +1,6 @@
 # Sidrena cijena za WooCommerce
 
-WordPress/WooCommerce plugin za obveze iz Odluka Vlade RH objavljenih u NN 101/2026, koje vrijede od 1. 10. 2026.:
+WordPress/WooCommerce plugin za obveze iz Odluka Vlade RH objavljenih u NN 101/2026, koje se primjenjuju od 17. 11. 2026. (NN 110/2026), usklađen s nacrtima pravilnika o objavi cjenika i isticanju bazne cijene:
 
 1. **Isticanje sidrene (dodatne) cijene** uz aktualnu cijenu na webshopu, sa sidrenim datumom 10. 9. 2026.
 2. **Objava strojno čitljivog cjenika** (.csv i .xml) na web stranici, ažuriranog dnevno do 8:00 i dostupnog 30 dana.

@@ -22,7 +22,7 @@ final class SC_Settings {
 			'font_weight'          => '400',
 			'custom_css'           => '',
 			'prikaz_mod'           => 'datum', // on | off | datum
-			'prikaz_od'            => '2026-10-01',
+			'prikaz_od'            => '2026-11-17',
 			'prikaz_kosarica'      => 1,
 			'prikaz_bez_sidrene'   => 'nista', // nista | redovna
 			'auto_novi'            => 1,
@@ -43,6 +43,7 @@ final class SC_Settings {
 			'barkod_izvor'         => 'gtin_sku',  // gtin_sku | gtin | sku | meta:<kljuc>
 			'jedinica_meta'        => '',
 			'cijena_jedinica_meta' => '',
+			'neto_kolicina_meta'   => '',
 			'naziv_akcije'         => 'Akcija',
 			'javni_slug'           => 'cjenik',
 			'ukljuci_nedostupne'   => 1,

@@ -182,15 +182,15 @@ final class SCP_Admin {
 				<div class="scp-stat"><b class="scp-warn"><?php echo (int) $st['preskoceno_zbroj']; ?></b>preskočeno (redak zbroja)</div><?php endif; ?>
 			<div class="scp-stat"><b><?php echo (int) $st['akcija']; ?></b>na akciji</div>
 			<div class="scp-stat"><b><?php echo (int) $st['nedostupno']; ?></b>nedostupno</div>
-			<div class="scp-stat"><b class="<?php echo $st['bez_sidrene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_sidrene']; ?></b>bez sidrene cijene</div>
-			<div class="scp-stat"><b class="<?php echo $st['bez_barkoda'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_barkoda']; ?></b>bez barkoda</div>
-			<p class="description">Barkod je po pojašnjenju Ministarstva (18. 9. 2026.) obvezan „ako je primjenjivo“: za robu koja ga nema polje ostaje prazno i ne izmišlja se.</p>
-			<div class="scp-stat"><b class="<?php echo ! empty( $st['bez_marke'] ) ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) ( $st['bez_marke'] ?? 0 ); ?></b>bez marke</div>
+			<div class="scp-stat"><b class="<?php echo $st['bez_sidrene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_sidrene']; ?></b>bez bazne (sidrene) cijene</div>
+			<div class="scp-stat"><b><?php echo (int) $st['bez_barkoda']; ?></b>bez barkoda</div>
+			<p class="description">Šifra, marka, barkod, neto količina i jedinica mjere obvezni su „ako je primjenjivo“ (nacrt Pravilnika o načinu objave cjenika proizvoda): za robu koja ih nema polja ostaju prazna i ne izmišljaju se.</p>
+			<div class="scp-stat"><b><?php echo (int) ( $st['bez_marke'] ?? 0 ); ?></b>bez marke</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_cijene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_cijene']; ?></b>preskočeno (bez cijene)</div>
 			<?php
 			if ( $st['bez_sidrene'] ) :
 				?>
-				<p class="scp-warn">Odluka (točka III.) traži sidrenu cijenu u cjeniku. Ako blagajna nema taj podatak, stupac ostaje prazan; objava je ipak moguća.</p><?php endif; ?>
+				<p class="scp-warn">Bazna (sidrena) cijena je obvezan podatak cjenika (Odluka NN 101/2026 i nacrt Pravilnika). Ako blagajna nema taj podatak, stupac ostaje prazan; objava je ipak moguća.</p><?php endif; ?>
 			<p><small>Prepoznati stupci: 
 			<?php
 			foreach ( $preview['map'] as $f => $idx ) {
@@ -245,7 +245,7 @@ final class SCP_Admin {
 					<tr><th><label for="scp-dan">Cjenik vrijedi za dan</label></th><td><input type="date" name="vrijedi_za" id="scp-dan" value="<?php echo esc_attr( $pre_day ); ?>" max="<?php echo esc_attr( wp_date( 'Y-m-d' ) ); ?>" required>
 						<p class="description">Zadano danas. Za nadopunu propuštenog dana odaberi taj dan. Naziv datoteke uvijek nosi stvarno vrijeme objave (točka VI. Odluke), a dan za koji vrijedi zapisan je u XML-u i na javnoj stranici.</p></td></tr>
 					<tr><th><label for="scp-csv">Datoteka s blagajne (CSV ili Excel)</label></th><td><input type="file" name="csv" id="scp-csv" accept=".csv,.txt,.xls,.xlsx,.ods,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
-						<p class="description">Obvezni stupci: <code>barkod</code>, <code>naziv</code>, <code>cijena</code>. Neobavezni: <code>akcijska_cijena</code>, <code>dostupnost</code>, <code>sidrena_cijena</code>, <code>sifra</code>, <code>marka</code>, <code>jedinica_mjere</code>, <code>cijena_za_jedinicu_mjere</code>. Izlazna datoteka ima 14 stupaca propisanih Odlukom; one koje ne šaljete plugin računa (maloprodajna cijena, oznaka akcije) ili ostavlja prazne. Prihvaća se i Excel (.xls, .xlsx) izravno iz blagajne, bez pretvorbe. Nazivi stupaca se prepoznaju automatski (npr. Kataloški broj, Naziv artikla, Prosječna MP cijena, Količina, EAN, MPC, akcija, zaliha). Separator ; ili , ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250.
+						<p class="description">Obvezni stupci: <code>barkod</code>, <code>naziv</code>, <code>cijena</code>. Neobavezni: <code>akcijska_cijena</code>, <code>dostupnost</code>, <code>bazna_cijena</code> (ili <code>sidrena_cijena</code>), <code>sifra</code>, <code>marka</code>, <code>neto_kolicina</code>, <code>jedinica_mjere</code>, <code>cijena_za_jedinicu_mjere</code>. Izlazna datoteka ima 14 stupaca propisanih Odlukom; one koje ne šaljete plugin računa (maloprodajna cijena, oznaka akcije) ili ostavlja prazne. Prihvaća se i Excel (.xls, .xlsx) izravno iz blagajne, bez pretvorbe. Nazivi stupaca se prepoznaju automatski (npr. Kataloški broj, Naziv artikla, Prosječna MP cijena, Količina, EAN, MPC, akcija, zaliha). Separator ; ili , ili tab, decimalni zarez ili točka, UTF-8 ili Windows-1250.
 						<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_template' ), 'scp_template' ) ); ?>">Preuzmi predložak CSV-a</a></p></td></tr>
 				</table>
 				<?php submit_button( 'Učitaj i pregledaj', 'secondary', 'submit', false ); ?>
@@ -565,11 +565,11 @@ final class SCP_Admin {
 		header( 'Content-Type: text/csv; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename="predlozak-cjenik-poslovnica.csv"' );
 		echo "\xEF\xBB\xBF";
-		echo "barkod;naziv;cijena;akcijska_cijena;dostupnost;sidrena_cijena;sifra;marka;jedinica_mjere;cijena_za_jedinicu_mjere\n";
-		echo "3859890000011;\"Primjer proizvod A (CD)\";10,49;;dostupno;10,49;ART-0001;Primjer marka;;\n";
-		echo "3859890000028;\"Primjer proizvod B (LP)\";19,00;15,00;dostupno;19,00;ART-0002;;;\n";
-		echo "3859890000035;\"Primjer proizvod C (majica)\";9,00;;nedostupno;9,00;;;;\n";
-		echo "3859890000042;\"Primjer proizvod D (kava 250 g)\";4,50;;dostupno;4,50;;;kg;18,00\n";
+		echo "barkod;naziv;cijena;akcijska_cijena;dostupnost;bazna_cijena;sifra;marka;neto_kolicina;jedinica_mjere;cijena_za_jedinicu_mjere\n";
+		echo "3859890000011;\"Primjer proizvod A (CD)\";10,49;;dostupno;10,49;ART-0001;Primjer marka;;;\n";
+		echo "3859890000028;\"Primjer proizvod B (LP)\";19,00;15,00;dostupno;19,00;ART-0002;;;;\n";
+		echo "3859890000035;\"Primjer proizvod C (majica)\";9,00;;nedostupno;9,00;;;;;\n";
+		echo "3859890000042;\"Primjer proizvod D (kava 250 g)\";4,50;;dostupno;4,50;;;250 g;kg;18,00\n";
 		exit;
 	}
 }

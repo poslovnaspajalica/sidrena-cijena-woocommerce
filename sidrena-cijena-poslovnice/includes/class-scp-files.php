@@ -188,8 +188,11 @@ final class SCP_Files {
 	public static function apply_retention( string $store_id ): void {
 		$days   = max( 31, (int) SCP_Settings::get( 'retencija_dana' ) );
 		$cutoff = time() - $days * DAY_IN_SECONDS;
+		$latest = self::latest( $store_id );
+		$keep   = array_filter( [ $latest['csv']['name'] ?? '', $latest['xml']['name'] ?? '' ] );
 		foreach ( self::list_files( $store_id ) as $f ) {
-			if ( $f['mtime'] < $cutoff ) {
+			// Zadnji objavljeni cjenik ostaje uvijek dostupan (nacrt Pravilnika: 30 dana od zadnje objave).
+			if ( $f['mtime'] < $cutoff && ! in_array( $f['name'], $keep, true ) ) {
 				wp_delete_file( self::store_dir( $store_id ) . $f['name'] );
 				self::forget( $store_id, $f['name'] );
 			}

@@ -1,11 +1,22 @@
 # Sidrena cijena - cjenik poslovnica
 
 WordPress plugin za dnevnu objavu strojno čitljivog cjenika (.csv i .xml) za **fizičke poslovnice**, prema
-Odluci o objavi cjenika proizvoda i usluga kao mjera izravne kontrole cijena (NN 101/2026, na snazi od 1. 10. 2026.).
+Odluci o objavi cjenika proizvoda i usluga kao mjera izravne kontrole cijena (NN 101/2026, primjena od 17. 11. 2026. prema NN 110/2026), usklađen s nacrtom Pravilnika o načinu objave cjenika proizvoda.
 
 Djelatnik svaki dan prenese CSV ili Excel s blagajne, plugin ga pretvori u propisanu strukturu, imenuje datoteku po
 točki VI. Odluke i objavi na stranici `/cjenik/`. Radi samostalno (ne treba WooCommerce) ili uz plugin
 **Sidrena cijena za WooCommerce**, s kojim dijeli istu stranicu `/cjenik/` s karticama Webshop / Poslovnica.
+
+## Usklađenost s propisima
+
+- Odluke NN 101/2026 (isticanje dodatne cijene, objava cjenika), s izmjenama NN 110/2026: primjena od **17. 11. 2026.**
+- Nacrti pravilnika prema Zakonu o zaštiti potrošača (e-Savjetovanje 14. 10. do 13. 11. 2026., stupanje na snagu
+  predviđeno 17. 11. 2026.): Pravilnik o načinu objave cjenika proizvoda i Pravilnik o isticanju bazne cijene proizvoda.
+  Cjenik slijedi redoslijed polja iz nacrta, uključuje neto količinu, a stupac cijene zove se `bazna_cijena`.
+  Polja koja traži samo Odluka (dostupnost) ostaju, jer Odluka i dalje vrijedi.
+- Šifra, marka, neto količina, jedinica mjere, cijena za jedinicu mjere i barkod obvezni su „ako je primjenjivo“.
+- Zadnji objavljeni cjenik nikad se ne briše retencijom (nacrt: dostupnost 30 dana od zadnje objave).
+- Nacrti se još mogu promijeniti; nakon objave konačnih pravilnika u Narodnim novinama plugin treba provjeriti.
 
 ## Instalacija
 
@@ -38,7 +49,7 @@ Prihvaća se CSV, kao i Excel (.xls, .xlsx) ili ODS izravno iz blagajne, bez pre
 neprazni redak je zaglavlje. Brojevi se prenose bez eksponenta i bez ".0", pa kataloški brojevi i barkodovi ostaju
 cjeloviti (Excel ih pri ručnom spremanju u CSV zna skratiti ili isprazniti).
 
-Obvezni stupci: `barkod`, `naziv`, `cijena`. Neobavezni: `akcijska_cijena`, `dostupnost`, `sidrena_cijena`,
+Obvezni stupci: `barkod`, `naziv`, `cijena`. Neobavezni: `akcijska_cijena`, `dostupnost`, `bazna_cijena` (ili `sidrena_cijena`), `neto_kolicina`,
 `sifra`, `marka`, `jedinica_mjere`, `cijena_za_jedinicu_mjere`. Predložak se preuzima u adminu. Izlazna datoteka
 ima 14 stupaca propisanih Odlukom: one koje ne šaljete plugin računa (maloprodajna cijena, oznaka i naziv akcije)
 ili ostavlja prazne (kategorija, url), a datum sidrene cijene upisuje iz postavki.
@@ -60,9 +71,10 @@ ili ostavlja prazne (kategorija, url), a datum sidrene cijene upisuje iz postavk
 
 ## Izlaz
 
-Stupci su identični webshop pluginu (Odluka traži jedinstvenu strukturu za sve objekte lanca): naziv; šifra; marka;
-jedinica mjere; cijena za jedinicu mjere; maloprodajna cijena; posebni oblik prodaje (DA/NE); naziv posebnog oblika
-prodaje; sidrena cijena; barkod; dostupnost; datum sidrene cijene; kategorija; url. Kategorija i url su prazni.
+Stupci su identični webshop pluginu (jedinstvena struktura za sve objekte), redoslijed prema nacrtu Pravilnika:
+naziv; šifra; marka; neto količina; jedinica mjere; maloprodajna cijena; posebni oblik prodaje (DA/NE);
+naziv posebnog oblika prodaje; cijena za jedinicu mjere; barkod; bazna (sidrena) cijena; dostupnost; datum bazne cijene;
+kategorija; url. Kategorija i url su prazni.
 
 Javno: `/cjenik/` (kartice po objektu), `/cjenik/poslovnica-<id>/latest.csv`, `/cjenik/poslovnica-<id>/latest.xml`,
 `/cjenik/index.json` (svi objekti i datoteke).

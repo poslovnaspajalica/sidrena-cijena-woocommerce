@@ -236,7 +236,7 @@ final class SC_Export {
 		$csv = fopen( $state['csv_tmp'], 'a' );
 		$xml = fopen( $state['xml_tmp'], 'a' );
 		foreach ( $rows as $row ) {
-			if ( $row['sidrena_cijena'] === '' && empty( $row['_izuzet'] ) ) {
+			if ( $row['bazna_cijena'] === '' && empty( $row['_izuzet'] ) ) {
 				++$state['missing'];
 			}
 			unset( $row['_izuzet'] );
@@ -480,15 +480,16 @@ final class SC_Export {
 			'naziv',
 			'sifra',
 			'marka',
+			'neto_kolicina',
 			'jedinica_mjere',
-			'cijena_za_jedinicu_mjere',
 			'maloprodajna_cijena',
 			'posebni_oblik_prodaje',
 			'naziv_posebnog_oblika_prodaje',
-			'sidrena_cijena',
+			'cijena_za_jedinicu_mjere',
 			'barkod',
+			'bazna_cijena',
 			'dostupnost',
-			'sidrena_cijena_datum',
+			'bazna_cijena_datum',
 			'kategorija',
 			'url',
 		];
@@ -509,7 +510,7 @@ final class SC_Export {
 			SC_Snapshot::META_EXCL,
 			SC_Snapshot::META_NOCJ,
 		];
-		foreach ( [ 'jedinica_meta', 'cijena_jedinica_meta' ] as $k ) {
+		foreach ( [ 'jedinica_meta', 'cijena_jedinica_meta', 'neto_kolicina_meta' ] as $k ) {
 			if ( ! empty( $s[ $k ] ) ) {
 				$keys[] = $s[ $k ];
 			}
@@ -675,19 +676,21 @@ final class SC_Export {
 			};
 		}
 
-		$row = [
+		$neto_key = (string) ( $s['neto_kolicina_meta'] ?? '' );
+		$row      = [
 			'naziv'                         => wp_strip_all_tags( $name ),
 			'sifra'                         => $sku,
 			'marka'                         => $brand,
+			'neto_kolicina'                 => $neto_key !== '' ? (string) ( $m[ $neto_key ] ?? '' ) : '',
 			'jedinica_mjere'                => ! empty( $s['jedinica_meta'] ) ? (string) ( $m[ $s['jedinica_meta'] ] ?? '' ) : '',
-			'cijena_za_jedinicu_mjere'      => ! empty( $s['cijena_jedinica_meta'] ) ? (string) ( $m[ $s['cijena_jedinica_meta'] ] ?? '' ) : '',
 			'maloprodajna_cijena'           => self::fmt_price( self::incl_tax( $price, $tax_class, $tax_status ), $s ),
 			'posebni_oblik_prodaje'         => $on_sale ? 'DA' : 'NE',
 			'naziv_posebnog_oblika_prodaje' => $on_sale ? (string) $s['naziv_akcije'] : '',
-			'sidrena_cijena'                => $sidrena,
+			'cijena_za_jedinicu_mjere'      => ! empty( $s['cijena_jedinica_meta'] ) ? (string) ( $m[ $s['cijena_jedinica_meta'] ] ?? '' ) : '',
 			'barkod'                        => $barcode,
+			'bazna_cijena'                  => $sidrena,
 			'dostupnost'                    => in_array( $m['_stock_status'] ?? 'instock', [ 'instock', 'onbackorder' ], true ) ? 'dostupno' : 'nedostupno',
-			'sidrena_cijena_datum'          => $sidrena !== '' ? (string) ( $m[ SC_Snapshot::META_DATE ] ?? $s['referentni_datum'] ) : '',
+			'bazna_cijena_datum'            => $sidrena !== '' ? (string) ( $m[ SC_Snapshot::META_DATE ] ?? $s['referentni_datum'] ) : '',
 			'kategorija'                    => $cats,
 			'url'                           => $url,
 			'_izuzet'                       => $excluded,
@@ -796,8 +799,11 @@ final class SC_Export {
 	public static function apply_retention(): void {
 		$days   = max( 31, (int) SC_Settings::get( 'retencija_dana' ) );
 		$cutoff = time() - $days * DAY_IN_SECONDS;
+		$last   = self::last();
+		$keep   = array_filter( [ $last['csv'] ?? '', $last['xml'] ?? '' ] );
 		foreach ( self::list_files() as $f ) {
-			if ( $f['mtime'] < $cutoff ) {
+			// Zadnji objavljeni cjenik ostaje uvijek dostupan (nacrt Pravilnika: 30 dana od zadnje objave).
+			if ( $f['mtime'] < $cutoff && ! in_array( $f['name'], $keep, true ) ) {
 				wp_delete_file( self::files_dir() . $f['name'] );
 			}
 		}

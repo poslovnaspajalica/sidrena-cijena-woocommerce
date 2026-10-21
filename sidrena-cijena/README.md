@@ -1,6 +1,6 @@
 # Sidrena cijena za WooCommerce
 
-WordPress/WooCommerce plugin za dvije obveze koje vrijede od **1. 10. 2026.**:
+WordPress/WooCommerce plugin za dvije obveze koje se primjenjuju od **17. 11. 2026.** (NN 110/2026):
 
 1. **Isticanje sidrene (dodatne) cijene** uz aktualnu cijenu na svim mjestima gdje se cijena prikazuje
    (Odluka o isticanju dodatne cijene kao mjera izravne kontrole cijena, NN 101/2026).
@@ -8,6 +8,17 @@ WordPress/WooCommerce plugin za dvije obveze koje vrijede od **1. 10. 2026.**:
    (Odluka o objavi cjenika proizvoda i usluga kao mjera izravne kontrole cijena, NN 101/2026).
 
 Pravni temelj: Zakon o iznimnim mjerama kontrole cijena (NN 40/2025), čl. 6, 8, 15 i 20.
+
+## Usklađenost s propisima
+
+- Odluke NN 101/2026 (isticanje dodatne cijene, objava cjenika), s izmjenama NN 110/2026: primjena od **17. 11. 2026.**
+- Nacrti pravilnika prema Zakonu o zaštiti potrošača (e-Savjetovanje 14. 10. do 13. 11. 2026., stupanje na snagu
+  predviđeno 17. 11. 2026.): Pravilnik o načinu objave cjenika proizvoda i Pravilnik o isticanju bazne cijene proizvoda.
+  Cjenik slijedi redoslijed polja iz nacrta, uključuje neto količinu, a stupac cijene zove se `bazna_cijena`.
+  Polja koja traži samo Odluka (dostupnost) ostaju, jer Odluka i dalje vrijedi.
+- Šifra, marka, neto količina, jedinica mjere, cijena za jedinicu mjere i barkod obvezni su „ako je primjenjivo“.
+- Zadnji objavljeni cjenik nikad se ne briše retencijom (nacrt: dostupnost 30 dana od zadnje objave).
+- Nacrti se još mogu promijeniti; nakon objave konačnih pravilnika u Narodnim novinama plugin treba provjeriti.
 
 ## Instalacija
 
@@ -32,7 +43,7 @@ proizvoda: oko 12 s), cjenik izravnim SQL upitima bez učitavanja WooCommerce ob
 4. Provjeri javnu stranicu `https://tvoja-domena.hr/cjenik/`.
 
 ## Prekidač prikaza
-U Postavkama: *Automatski uključi od datuma* (zadano 1. 10. 2026.), *Uključen odmah* ili *Isključen*.
+U Postavkama: *Automatski uključi od datuma* (zadano 17. 11. 2026.), *Uključen odmah* ili *Isključen*.
 Dok je prikaz isključen plugin normalno bilježi sidrene cijene, generira cjenik i čuva podatke, samo
 kupci ne vide oznaku. Plugin se dakle može instalirati i pripremiti unaprijed.
 
@@ -83,9 +94,10 @@ i dodatne stupce (ignoriraju se), pa se može uvesti i izvoz iz ERP-a.
   npr. `webshop_ilica-150-zagreb_P-01_104_01.10.2026_07-45.csv`. Prati primjer iz pojašnjenja Ministarstva gospodarstva
   od 18. 9. 2026. (KLASA 330-01/25-01/13): broj pohrane je redni broj generirane datoteke i sam se povećava.
 - Javno: `/cjenik/` (popis), `/cjenik/latest.csv`, `/cjenik/latest.xml`, `/cjenik/index.json`.
-- Stupci (točka III. Odluke, redom): naziv; šifra; marka; jedinica mjere; cijena za jedinicu mjere;
-  maloprodajna cijena; posebni oblik prodaje (DA/NE); naziv posebnog oblika prodaje; sidrena cijena;
-  barkod; dostupnost. Dodatno: datum sidrene cijene; kategorija; url.
+- Stupci (redoslijed iz nacrta Pravilnika o načinu objave cjenika proizvoda): naziv; šifra; marka; neto količina; jedinica mjere; maloprodajna cijena; posebni oblik prodaje (DA/NE);
+  naziv posebnog oblika prodaje; cijena za jedinicu mjere; barkod; bazna (sidrena) cijena; dostupnost; datum bazne cijene;
+  kategorija; url.
+  Neto količina se čita iz meta polja zadanog u Postavkama.
 - Marka: izvor je WooCommerce Brands, atribut ili meta polje (Postavke). Kad izvor za proizvod nema vrijednost,
   upisuje se „Zadana marka“ iz postavki; prazno = stupac ostaje prazan.
 - CSV: UTF-8 s BOM-om, separator `;`, sve vrijednosti u navodnicima. Decimalni znak podesiv.

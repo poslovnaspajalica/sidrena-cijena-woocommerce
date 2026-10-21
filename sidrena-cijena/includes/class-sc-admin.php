@@ -161,7 +161,7 @@ final class SC_Admin {
 			if ( ! empty( $s['alt_kategorije'] ) ) :
 				?>
 				(kategorije NN 75/2025: <?php echo esc_html( SC_Settings::format_date( $s['alt_datum'] ) ); ?>)<?php endif; ?>
-			· Obveza isticanja i objave cjenika vrijedi od <strong>1. 10. 2026.</strong></p>
+			· Obveza isticanja i objave cjenika vrijedi od <strong>17. 11. 2026.</strong> (NN 110/2026)</p>
 			<?php $active = SC_Settings::display_active(); ?>
 			<p>Prikaz sidrene cijene na webshopu: 
 			<?php
@@ -271,7 +271,7 @@ final class SC_Admin {
 							<input type="date" name="prikaz_od" value="<?php echo esc_attr( $s['prikaz_od'] ); ?>"></label><br>
 							<label><input type="radio" name="prikaz_mod" value="on" <?php checked( $s['prikaz_mod'], 'on' ); ?>> Uključen odmah</label><br>
 							<label><input type="radio" name="prikaz_mod" value="off" <?php checked( $s['prikaz_mod'], 'off' ); ?>> Isključen</label>
-							<p class="description">Dok je prikaz isključen, plugin i dalje bilježi sidrene cijene, generira cjenik i čuva podatke. Obveza isticanja počinje 1. 10. 2026.</p></td></tr>
+							<p class="description">Dok je prikaz isključen, plugin i dalje bilježi sidrene cijene, generira cjenik i čuva podatke. Obveza isticanja počinje 17. 11. 2026. (NN 110/2026); raniji prikaz je dopušten.</p></td></tr>
 					<tr><th><label for="referentni_datum">Referentni datum</label></th>
 						<td><input type="date" name="referentni_datum" id="referentni_datum" value="<?php echo esc_attr( $s['referentni_datum'] ); ?>">
 						<p class="description">Odluka NN 101/2026: 10. 9. 2026.</p></td></tr>
@@ -396,6 +396,7 @@ final class SC_Admin {
 						</select>
 						<input type="text" name="barkod_meta" placeholder="ili meta ključ, npr. _ean" value=""></td></tr>
 					<tr><th><label>Jedinica mjere (meta ključ)</label></th><td><input type="text" name="jedinica_meta" value="<?php echo esc_attr( $s['jedinica_meta'] ); ?>"> <input type="text" name="cijena_jedinica_meta" value="<?php echo esc_attr( $s['cijena_jedinica_meta'] ); ?>" placeholder="meta ključ cijene za jedinicu"> <span class="description">„ako je primjenjivo“; za ploče/CD-e ostavi prazno</span></td></tr>
+					<tr><th><label>Neto količina (meta ključ)</label></th><td><input type="text" name="neto_kolicina_meta" value="<?php echo esc_attr( $s['neto_kolicina_meta'] ); ?>" placeholder="npr. _neto_kolicina"> <span class="description">Nacrt Pravilnika o načinu objave cjenika: „neto količina, ako je primjenjivo“ (npr. 250 g, 1 l). Za ploče/CD-e ostavi prazno.</span></td></tr>
 					<tr><th><label>Naziv posebnog oblika prodaje</label></th><td><input type="text" name="naziv_akcije" value="<?php echo esc_attr( $s['naziv_akcije'] ); ?>"> <span class="description">upisuje se kad je proizvod na akciji</span></td></tr>
 					<tr><th>Uključi u cjenik</th>
 						<td><label><input type="checkbox" name="ukljuci_nedostupne" value="1" <?php checked( $s['ukljuci_nedostupne'] ); ?>> proizvode koji nisu na zalihi (označeni „nedostupno“)</label><br>
@@ -521,7 +522,7 @@ final class SC_Admin {
 				'font_weight'          => in_array( (string) ( $p['font_weight'] ?? '' ), [ '300', '400', '500', '600', '700' ], true ) ? (string) $p['font_weight'] : '400',
 				'custom_css'           => wp_strip_all_tags( (string) ( $p['custom_css'] ?? '' ) ),
 				'prikaz_mod'           => in_array( $p['prikaz_mod'] ?? '', [ 'on', 'off', 'datum' ], true ) ? $p['prikaz_mod'] : 'datum',
-				'prikaz_od'            => $date( $p['prikaz_od'] ?? '', '2026-10-01' ),
+				'prikaz_od'            => $date( $p['prikaz_od'] ?? '', '2026-11-17' ),
 				'prikaz_kosarica'      => empty( $p['prikaz_kosarica'] ) ? 0 : 1,
 				'prikaz_bez_sidrene'   => ( $p['prikaz_bez_sidrene'] ?? 'nista' ) === 'redovna' ? 'redovna' : 'nista',
 				'auto_novi'            => empty( $p['auto_novi'] ) ? 0 : 1,
@@ -535,6 +536,7 @@ final class SC_Admin {
 				'barkod_izvor'         => $barkod,
 				'jedinica_meta'        => sanitize_key( $p['jedinica_meta'] ?? '' ),
 				'cijena_jedinica_meta' => sanitize_key( $p['cijena_jedinica_meta'] ?? '' ),
+				'neto_kolicina_meta'   => sanitize_key( $p['neto_kolicina_meta'] ?? '' ),
 				'naziv_akcije'         => sanitize_text_field( $p['naziv_akcije'] ?? 'Akcija' ),
 				'ukljuci_nedostupne'   => empty( $p['ukljuci_nedostupne'] ) ? 0 : 1,
 				'ukljuci_skrivene'     => empty( $p['ukljuci_skrivene'] ) ? 0 : 1,
@@ -585,7 +587,7 @@ final class SC_Admin {
 		header( 'Content-Disposition: attachment; filename="sidrene-cijene-radni-' . wp_date( 'Ymd-Hi' ) . '.csv"' );
 		$out = fopen( 'php://output', 'w' );
 		fwrite( $out, "\xEF\xBB\xBF" );
-		fputcsv( $out, [ 'id', 'tip', 'sku', 'naziv', 'redovna_cijena', 'sidrena_cijena', 'datum', 'izvor' ], ';', '"', '' );
+		fputcsv( $out, [ 'id', 'tip', 'sku', 'naziv', 'redovna_cijena', 'bazna_cijena', 'datum', 'izvor' ], ';', '"', '' );
 		foreach ( $rows as $r ) {
 			fputcsv( $out, [ $r['ID'], $r['post_type'] === 'product_variation' ? 'varijacija' : 'proizvod', $r['sku'], $r['post_title'], $r['regular'], $r['sidrena'], $r['datum'], $r['izvor'] ], ';', '"', '' );
 		}
@@ -655,8 +657,8 @@ final class SC_Admin {
 		} )();
 		$c_sku  = $col( [ 'sku', 'sifra', 'šifra', 'ean', 'barkod', 'gtin', 'barcode' ] );
 		$c_id   = $col( [ 'id', 'product_id' ] );
-		$c_pr   = $col( [ 'sidrena_cijena', 'sidrena', 'sidrena cijena', 'cijena', 'price' ] );
-		$c_dt   = $col( [ 'datum', 'sidrena_cijena_datum', 'date' ] );
+		$c_pr   = $col( [ 'bazna_cijena', 'bazna cijena', 'bazna', 'sidrena_cijena', 'sidrena', 'sidrena cijena', 'cijena', 'price' ] );
+		$c_dt   = $col( [ 'datum', 'bazna_cijena_datum', 'sidrena_cijena_datum', 'date' ] );
 		if ( $c_pr === null || ( $c_sku === null && $c_id === null ) ) {
 			return $res + [ 'error' => 'Zaglavlje mora sadržavati stupac za proizvod (sku/sifra/ean ili id) i stupac sidrena_cijena.' ];
 		}

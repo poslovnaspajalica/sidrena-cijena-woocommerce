@@ -140,7 +140,7 @@ code{background:#f3f3f3;padding:.1rem .3rem;border-radius:3px;font-size:.9em}sma
 </head>
 <body>
 <h1>Cjenik proizvoda - <?php echo esc_html( $name ); ?></h1>
-<p>Cjenici objavljeni sukladno Odluci o objavi cjenika proizvoda i usluga kao mjera izravne kontrole cijena (NN 101/2026). Datoteke su u strojno čitljivom obliku (.csv, .xml) i ostaju dostupne najmanje 30 dana od objave. Sidrena cijena: cijena koja je vrijedila na dan <strong><?php echo esc_html( $ref_date ); ?></strong></p>
+<p>Cjenici objavljeni sukladno Odluci o objavi cjenika proizvoda i usluga kao mjera izravne kontrole cijena (NN 101/2026). Usklađeno s nacrtom Pravilnika o načinu objave cjenika proizvoda (e-Savjetovanje, listopad 2026.). Datoteke su u strojno čitljivom obliku (.csv, .xml) i ostaju dostupne najmanje 30 dana od objave. Bazna (sidrena) cijena: cijena koja je vrijedila na dan <strong><?php echo esc_html( $ref_date ); ?></strong></p>
 <p>Strojno čitljiv popis svih datoteka i objekata: <code><?php echo esc_html( $base_url . 'index.json' ); ?></code></p>
 		<?php if ( count( $sections ) > 1 ) : ?>
 <nav class="tabs">
@@ -185,7 +185,7 @@ code{background:#f3f3f3;padding:.1rem .3rem;border-radius:3px;font-size:.9em}sma
 	</table>
 </section>
 		<?php endforeach; ?>
-<p><small>Stupci: naziv; šifra; marka; jedinica mjere; cijena za jedinicu mjere; maloprodajna cijena; posebni oblik prodaje (DA/NE); naziv posebnog oblika prodaje; sidrena cijena; barkod; dostupnost; datum sidrene cijene; kategorija; url. CSV: UTF-8, separator „;“, vrijednosti u navodnicima.</small></p>
+<p><small>Stupci: naziv; šifra; marka; neto količina; jedinica mjere; maloprodajna cijena; posebni oblik prodaje (DA/NE); naziv posebnog oblika prodaje; cijena za jedinicu mjere; barkod; bazna (sidrena) cijena; dostupnost; datum bazne cijene; kategorija; url. CSV: UTF-8, separator „;“, vrijednosti u navodnicima.</small></p>
 <script>
 document.querySelectorAll('.tabs a').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();document.querySelectorAll('.tabs a').forEach(function(x){x.classList.remove('on')});document.querySelectorAll('.sec').forEach(function(x){x.classList.remove('on')});a.classList.add('on');document.getElementById('sec-'+a.dataset.tab).classList.add('on');history.replaceState(null,'',a.href)})});
 </script>
