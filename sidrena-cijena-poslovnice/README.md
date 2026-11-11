@@ -18,6 +18,26 @@ točki VI. Odluke i objavi na stranici `/cjenik/`. Radi samostalno (ne treba Woo
 - Zadnji objavljeni cjenik nikad se ne briše retencijom (nacrt: dostupnost 30 dana od zadnje objave).
 - Nacrti se još mogu promijeniti; nakon objave konačnih pravilnika u Narodnim novinama plugin treba provjeriti.
 
+## Sidrene cijene po poslovnici
+
+Kartica **Sidrene cijene** drži trajnu tablicu sidrenih (baznih) cijena za svaku poslovnicu, u bazi
+`{prefiks}scp_bazne`.
+
+1. Jednom, za svaku poslovnicu, uvezi cjenik na referentni dan (CSV ili Excel iz blagajne). Artikli se prepoznaju
+   po šifri, a ako šifre nema, po barkodu. Vrijednost 0,00 ili prazno znači da cijene nema i takav se artikl ne upisuje.
+2. Pri svakoj dnevnoj objavi sidrena cijena se uzima iz tablice. Ako je datoteka s blagajne ima drukčiju, vrijedi
+   tablica, a pregled to prikaže.
+3. Artikl kojeg u tablici nema smatra se novim: sidrena mu je redovna cijena na dan prve objave, a ta se vrijednost
+   upisuje u tablicu i dalje se ne mijenja. To vrijedi i za artikle koji su u uvozu imali 0,00.
+4. Postojeće vrijednosti objava nikad ne mijenja; mijenja ih samo novi uvoz s izričito uključenim prepisivanjem.
+
+Tablicu po poslovnici moguće je preuzeti kao CSV i, uz potvrdu, obrisati. Aktivacija, deaktivacija i nadogradnja je
+ne diraju.
+
+Akcija se prepoznaje u oba oblika: zaseban stupac `akcijska_cijena`, ili oznaka `DA` u stupcu
+`posebni_oblik_prodaje` uz već sniženu maloprodajnu cijenu (format cjenika iz blagajne). Za jedinicu mjere `kom`
+cijena za jedinicu mjere uvijek je cijena po komadu, i kad blagajna pošalje drukčiju vrijednost.
+
 ## Gdje se podaci čuvaju
 
 Sve je u tablici `wp_options` (prefiks ovisi o instalaciji):
@@ -29,6 +49,7 @@ Sve je u tablici `wp_options` (prefiks ovisi o instalaciji):
 | `scp_brojaci` | sljedeći broj pohrane po poslovnici; mijenja se pri svakoj objavi |
 | `scp_settings`, `scp_settings_backup` | ostale postavke i njihova kopija |
 | `scp_manifest` | za koji dan vrijedi koja objavljena datoteka |
+| tablica `scp_bazne` | sidrene (bazne) cijene po poslovnici i artiklu |
 
 Objavljene datoteke su u `wp-content/uploads/sidrena-cijena/poslovnice/<id poslovnice>/`.
 

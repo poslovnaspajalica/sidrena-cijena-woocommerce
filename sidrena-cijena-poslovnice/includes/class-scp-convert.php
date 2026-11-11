@@ -46,6 +46,7 @@ final class SCP_Convert {
 			'jedinica'        => [ 'jedinica_mjere', 'jedinica mjere', 'jm', 'unit', 'jedmj', 'jed mj', 'jed mjere' ],
 			'cijena_jedinica' => [ 'cijena_za_jedinicu_mjere', 'cijena za jedinicu mjere', 'cijena_jm', 'unit_price' ],
 			'naziv_akcije'    => [ 'naziv_posebnog_oblika_prodaje', 'naziv_akcije', 'vrsta_akcije' ],
+			'posebni_oblik'   => [ 'posebni_oblik_prodaje', 'posebni oblik prodaje', 'poseban_oblik_prodaje', 'na_akciji', 'akcija_da_ne' ],
 		];
 	}
 
@@ -262,6 +263,10 @@ final class SCP_Convert {
 		return ( $s['decimalni_znak'] ?? '.' ) === ',' ? str_replace( '.', ',', $str ) : $str;
 	}
 
+	private static function is_yes( ?string $v ): bool {
+		return in_array( strtolower( trim( (string) $v ) ), [ 'da', 'yes', 'y', '1', 'true' ], true );
+	}
+
 	private static function availability( ?string $v, string $fallback ): string {
 		$t = strtolower( trim( (string) $v ) );
 		if ( $t === '' ) {
@@ -285,7 +290,19 @@ final class SCP_Convert {
 	 * Pretvori parsirane retke u izlazne retke (propisana struktura).
 	 * @return array{rows:array,stats:array}
 	 */
-	public static function transform( array $parsed, array $s ): array {
+	/**
+	 * Pretvori parsirane retke u propisanu strukturu.
+	 *
+	 * Bazna (sidrena) cijena, ako je zadana poslovnica: iz tablice baznih cijena (po šifri, pa barkodu);
+	 * ako je nema, iz datoteke (vrijednost veća od nule); ako ni toga nema, a poslovnica ima uvezene bazne
+	 * cijene, artikl je nov: bazna je trenutna redovna cijena s danom objave. Nove i iz datoteke preuzete
+	 * vrijednosti vraćaju se u 'nove' i upisuju u tablicu tek pri objavi.
+	 */
+	public static function transform( array $parsed, array $s, ?string $store_id = null, ?string $vrijedi_za = null ): array {
+		$bazne     = $store_id ? SCP_Bazne::load( $store_id ) : [ 'k' => [], 'b' => [] ];
+		$ima_bazne = ! empty( $bazne['k'] );
+		$dan       = $vrijedi_za ?: wp_date( 'Y-m-d' );
+		$nove      = [];
 		$map     = $parsed['map'];
 		$g       = static fn( array $r, string $f ): ?string => isset( $map[ $f ], $r[ $map[ $f ] ] ) ? (string) $r[ $map[ $f ] ] : null;
 		$stats   = [
@@ -297,6 +314,11 @@ final class SCP_Convert {
 			'bez_marke'        => 0,
 			'nedostupno'       => 0,
 			'preskoceno_zbroj' => 0,
+			'bazna_tablica'    => 0,
+			'bazna_datoteka'   => 0,
+			'bazna_nova'       => 0,
+			'bazna_razlika'    => 0,
+			'jm_ispravljeno'   => 0,
 		];
 		$default = (string) ( $s['dostupnost_zadano'] ?? 'dostupno' );
 		$marka_zadano = trim( (string) ( $s['marka_zadano'] ?? '' ) );
@@ -319,19 +341,55 @@ final class SCP_Convert {
 				continue;
 			}
 			$on_sale = $akcijska !== null && $akcijska > 0 && $akcijska < $cijena;
-			$sidrena = self::num( $g( $r, 'sidrena' ) );
+			if ( ! $on_sale && $akcijska === null && self::is_yes( $g( $r, 'posebni_oblik' ) ) ) {
+				// Format cjenika iz blagajne: maloprodajna cijena je već akcijska, a akcija je označena s DA.
+				$on_sale  = true;
+				$akcijska = $cijena;
+			}
+			$sifra   = trim( (string) $g( $r, 'sifra' ) );
+			$iz_dat  = self::num( $g( $r, 'sidrena' ) );
+			$iz_dat  = ( $iz_dat !== null && $iz_dat > 0 ) ? $iz_dat : null; // 0,00 znači da podatka nema
 			$sd      = trim( (string) $g( $r, 'sidrena_datum' ) );
+			$sd      = preg_match( '/^\d{4}-\d{2}-\d{2}$/', $sd ) ? $sd : (string) $s['referentni_datum'];
+			$sidrena = null;
+			$s_datum = '';
+			$hit     = $store_id ? SCP_Bazne::find( $bazne, $sifra, $barkod ) : null;
+			if ( $hit ) {
+				$sidrena = $hit['cijena'];
+				$s_datum = $hit['datum'];
+				++$stats['bazna_tablica'];
+				if ( $iz_dat !== null && abs( $iz_dat - $sidrena ) > 0.004 ) {
+					++$stats['bazna_razlika'];
+				}
+			} elseif ( $iz_dat !== null ) {
+				$sidrena = $iz_dat;
+				$s_datum = $sd;
+				++$stats['bazna_datoteka'];
+				if ( $store_id && ( $sifra !== '' || $barkod !== '' ) ) {
+					$nove[] = [ 'sifra' => $sifra, 'barkod' => $barkod, 'cijena' => $iz_dat, 'datum' => $sd, 'izvor' => 'datoteka' ];
+				}
+			} elseif ( $ima_bazne && ( $sifra !== '' || $barkod !== '' ) ) {
+				// Novi artikl: bazna je redovna (ne akcijska) cijena na dan prvog uvrštenja.
+				$sidrena = $cijena;
+				$s_datum = $dan;
+				++$stats['bazna_nova'];
+				$nove[] = [ 'sifra' => $sifra, 'barkod' => $barkod, 'cijena' => $cijena, 'datum' => $dan, 'izvor' => 'novi' ];
+			}
 			$dost    = self::availability( $g( $r, 'dostupnost' ), $default );
 
 			$jedinica = trim( (string) $g( $r, 'jedinica' ) );
 			$cij_jm   = self::num( $g( $r, 'cijena_jedinica' ) );
-			if ( $cij_jm === null && $jedinica !== '' && preg_match( '/^(kom|komad|kom\.|pcs|pc|st|stk)$/iu', $jedinica ) ) {
+			if ( $jedinica !== '' && preg_match( '/^(kom|komad|kom\.|pcs|pc|st|stk)$/iu', $jedinica ) ) {
 				// Roba na komad: cijena za jedinicu mjere jednaka je maloprodajnoj cijeni po komadu.
-				$cij_jm = $on_sale ? $akcijska : $cijena;
+				$po_komadu = $on_sale ? $akcijska : $cijena;
+				if ( $cij_jm !== null && abs( $cij_jm - $po_komadu ) > 0.004 ) {
+					++$stats['jm_ispravljeno'];
+				}
+				$cij_jm = $po_komadu;
 			}
 			$row = [
 				'naziv'                         => $naziv,
-				'sifra'                         => trim( (string) $g( $r, 'sifra' ) ),
+				'sifra'                         => $sifra,
 				'marka'                         => trim( (string) $g( $r, 'marka' ) ) ?: $marka_zadano,
 				'neto_kolicina'                 => trim( (string) $g( $r, 'neto_kolicina' ) ),
 				'jedinica_mjere'                => $jedinica,
@@ -342,7 +400,7 @@ final class SCP_Convert {
 				'barkod'                        => $barkod,
 				'bazna_cijena'                  => self::fmt( $sidrena, $s ),
 				'dostupnost'                    => $dost,
-				'bazna_cijena_datum'            => $sidrena !== null ? ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $sd ) ? $sd : (string) $s['referentni_datum'] ) : '',
+				'bazna_cijena_datum'            => $sidrena !== null ? $s_datum : '',
 				'kategorija'                    => '',
 				'url'                           => '',
 			];
@@ -357,6 +415,7 @@ final class SCP_Convert {
 		return [
 			'rows'  => $out,
 			'stats' => $stats,
+			'nove'  => $nove,
 		];
 	}
 

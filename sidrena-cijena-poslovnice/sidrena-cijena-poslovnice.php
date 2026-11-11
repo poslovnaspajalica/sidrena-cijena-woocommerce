@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sidrena cijena - cjenik poslovnica
  * Description: Dnevna objava strojno čitljivog cjenika (.csv/.xml) za fizičke poslovnice prema Odluci NN 101/2026: ručni upload CSV-a ili Excela s blagajne, pretvorba u propisanu strukturu, objava na stranici /cjenik/. Radi samostalno ili uz plugin "Sidrena cijena za WooCommerce".
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: Poslovna spajalica
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SCP_VERSION', '1.4.0' );
+define( 'SCP_VERSION', '1.5.0' );
 define( 'SCP_FILE', __FILE__ );
 define( 'SCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SCP_URL', plugin_dir_url( __FILE__ ) );
@@ -25,6 +25,7 @@ if ( file_exists( SCP_DIR . 'vendor/autoload.php' ) ) {
 	require_once SCP_DIR . 'vendor/autoload.php'; // PhpSpreadsheet za .xls/.xlsx
 }
 require_once SCP_DIR . 'includes/class-scp-settings.php';
+require_once SCP_DIR . 'includes/class-scp-bazne.php';
 require_once SCP_DIR . 'includes/class-scp-files.php';
 require_once SCP_DIR . 'includes/class-scp-convert.php';
 require_once SCP_DIR . 'includes/class-scp-admin.php';
@@ -51,6 +52,7 @@ final class Sidrena_Cijena_Poslovnice_Plugin {
 			return;
 		}
 		// Zadane postavke se ne zapisuju (čitaju se iz koda); postojeći podaci se nikad ne prepisuju.
+		SCP_Bazne::install();
 		$migrated = SCP_Settings::migrate_stores();
 		if ( $migrated !== '' ) {
 			set_transient( 'scp_migrated', $migrated, DAY_IN_SECONDS );
@@ -74,6 +76,7 @@ final class Sidrena_Cijena_Poslovnice_Plugin {
 	public static function activate(): void {
 		// Aktivacija ne zapisuje zadane postavke i ne dira postojeće podatke; samo prenosi popis iz starijih verzija.
 		SCP_Settings::migrate_stores();
+		SCP_Bazne::install();
 		// Ovlast za upload: administrator i voditelj trgovine, plus zasebna uloga za djelatnike poslovnica.
 		foreach ( [ 'administrator', 'shop_manager' ] as $role_name ) {
 			$role = get_role( $role_name );

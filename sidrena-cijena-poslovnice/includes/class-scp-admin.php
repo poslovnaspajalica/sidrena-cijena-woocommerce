@@ -15,6 +15,9 @@ final class SCP_Admin {
 		add_action( 'admin_post_scp_publish', [ __CLASS__, 'handle_publish' ] );
 		add_action( 'admin_post_scp_save_stores', [ __CLASS__, 'save_stores' ] );
 		add_action( 'admin_post_scp_restore_stores', [ __CLASS__, 'restore_stores' ] );
+		add_action( 'admin_post_scp_import_bazne', [ __CLASS__, 'import_bazne' ] );
+		add_action( 'admin_post_scp_export_bazne', [ __CLASS__, 'export_bazne' ] );
+		add_action( 'admin_post_scp_delete_bazne', [ __CLASS__, 'delete_bazne' ] );
 		add_action( 'admin_post_scp_export_stores', [ __CLASS__, 'export_stores' ] );
 		add_action( 'admin_post_scp_import_stores', [ __CLASS__, 'import_stores' ] );
 		add_action( 'admin_post_scp_save_settings', [ __CLASS__, 'save_settings' ] );
@@ -109,6 +112,7 @@ final class SCP_Admin {
 		];
 		if ( $is_admin ) {
 			$tabs['poslovnice'] = 'Poslovnice';
+			$tabs['sidrene']    = 'Sidrene cijene';
 			$tabs['postavke']   = 'Postavke';
 		}
 		if ( ! isset( $tabs[ $tab ] ) ) {
@@ -128,6 +132,7 @@ final class SCP_Admin {
 		match ( $tab ) {
 			'datoteke'   => self::tab_files(),
 			'poslovnice' => self::tab_stores(),
+			'sidrene'    => self::tab_bazne(),
 			'postavke'   => self::tab_settings(),
 			default      => self::tab_upload(),
 		};
@@ -191,6 +196,13 @@ final class SCP_Admin {
 			<div class="scp-stat"><b><?php echo (int) $st['akcija']; ?></b>na akciji</div>
 			<div class="scp-stat"><b><?php echo (int) $st['nedostupno']; ?></b>nedostupno</div>
 			<div class="scp-stat"><b class="<?php echo $st['bez_sidrene'] ? 'scp-warn' : 'scp-ok'; ?>"><?php echo (int) $st['bez_sidrene']; ?></b>bez bazne (sidrene) cijene</div>
+			<?php if ( ! empty( $st['bazna_tablica'] ) || ! empty( $st['bazna_nova'] ) || ! empty( $st['bazna_datoteka'] ) ) : ?>
+			<div class="scp-stat"><b><?php echo (int) ( $st['bazna_tablica'] ?? 0 ); ?></b>sidrena iz tablice</div>
+			<div class="scp-stat"><b><?php echo (int) ( $st['bazna_nova'] ?? 0 ); ?></b>novih artikala (cijena prvog uvrštenja)</div>
+			<div class="scp-stat"><b><?php echo (int) ( $st['bazna_datoteka'] ?? 0 ); ?></b>sidrena iz datoteke</div>
+			<?php endif; ?>
+			<?php if ( ! empty( $st['bazna_razlika'] ) ) : ?><div class="scp-stat"><b class="scp-warn"><?php echo (int) $st['bazna_razlika']; ?></b>datoteka ima drugu sidrenu nego tablica (vrijedi tablica)</div><?php endif; ?>
+			<?php if ( ! empty( $st['jm_ispravljeno'] ) ) : ?><div class="scp-stat"><b><?php echo (int) $st['jm_ispravljeno']; ?></b>ispravljena cijena za jed. mjere (kom = cijena po komadu)</div><?php endif; ?>
 			<div class="scp-stat"><b><?php echo (int) $st['bez_barkoda']; ?></b>bez barkoda</div>
 			<p class="description">Šifra, marka, barkod, neto količina i jedinica mjere obvezni su „ako je primjenjivo“ (nacrt Pravilnika o načinu objave cjenika proizvoda): za robu koja ih nema polja ostaju prazna i ne izmišljaju se.</p>
 			<div class="scp-stat"><b><?php echo (int) ( $st['bez_marke'] ?? 0 ); ?></b>bez marke</div>
@@ -411,6 +423,160 @@ final class SCP_Admin {
 		<?php
 	}
 
+	/* ---------- Sidrene (bazne) cijene po poslovnici ---------- */
+
+	private static function tab_bazne(): void {
+		$stores = SCP_Settings::stores();
+		$uvozi  = get_option( 'scp_bazne_uvoz', [] );
+		$uvozi  = is_array( $uvozi ) ? $uvozi : [];
+		?>
+		<div class="scp-card">
+			<h2>Sidrene cijene po poslovnici</h2>
+			<p class="description">Trajna tablica sidrenih cijena (u bazi <code><?php echo esc_html( SCP_Bazne::table() ); ?></code>). Pri svakoj objavi sidrena cijena se uzima iz ove tablice po šifri artikla, a ako šifre nema, po barkodu. Artikl kojeg u tablici nema smatra se novim: sidrena mu je redovna cijena na dan prve objave i ta se vrijednost upisuje u tablicu. Postojeće vrijednosti objava nikad ne mijenja.</p>
+			<table class="widefat striped"><thead><tr><th>Poslovnica</th><th>Zapisa</th><th>Po izvoru</th><th>Zadnja promjena</th><th>Zadnji uvoz</th><th></th></tr></thead><tbody>
+			<?php foreach ( $stores as $st ) : $b = SCP_Bazne::stats( $st['id'] ); $u = $uvozi[ $st['id'] ] ?? null; ?>
+				<tr>
+					<td><strong><?php echo esc_html( $st['naziv'] ?: $st['adresa'] ); ?></strong><br><small><?php echo esc_html( $st['adresa'] ); ?></small></td>
+					<td><?php echo (int) $b['ukupno']; ?></td>
+					<td><?php echo esc_html( $b['po_izvoru'] ? implode( ', ', array_map( static fn( $k, $v ) => $k . ': ' . $v, array_keys( $b['po_izvoru'] ), $b['po_izvoru'] ) ) : '-' ); ?></td>
+					<td><?php echo esc_html( $b['azurirano'] ? mysql2date( 'd.m.Y. H:i', $b['azurirano'] ) : '-' ); ?></td>
+					<td><?php echo $u ? esc_html( wp_date( 'd.m.Y. H:i', (int) $u['vrijeme'] ) . ', ' . $u['datoteka'] . ' (upisano ' . (int) $u['upisano'] . ', bez cijene ' . (int) $u['bez_cijene'] . ')' ) : '-'; ?></td>
+					<td>
+						<?php if ( $b['ukupno'] ) : ?>
+							<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_export_bazne&store=' . rawurlencode( $st['id'] ) ), 'scp_export_bazne' ) ); ?>">Preuzmi CSV</a> ·
+							<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_delete_bazne&store=' . rawurlencode( $st['id'] ) ), 'scp_delete_bazne_' . $st['id'] ) ); ?>" class="submitdelete" onclick="return confirm('Obrisati SVE sidrene cijene za ovu poslovnicu? Preuzmi CSV prije brisanja.')">Obriši</a>
+						<?php endif; ?>
+					</td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody></table>
+		</div>
+
+		<div class="scp-card">
+			<h2>Uvoz sidrenih cijena</h2>
+			<p class="description">Prenesi cjenik poslovnice na referentni dan (CSV ili Excel iz blagajne). Artikli se prepoznaju po šifri i barkodu. Vrijednost 0,00 ili prazno znači da cijene nema: takav artikl se ne upisuje, nego dobiva cijenu pri prvoj objavi u kojoj se pojavi.</p>
+			<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'scp_import_bazne' ); ?>
+				<input type="hidden" name="action" value="scp_import_bazne">
+				<table class="form-table">
+					<tr><th><label for="scp-b-store">Poslovnica</label></th><td><select name="store" id="scp-b-store" required>
+						<?php foreach ( $stores as $st ) : ?><option value="<?php echo esc_attr( $st['id'] ); ?>"><?php echo esc_html( ( $st['naziv'] ?: $st['adresa'] ) . ' (' . $st['adresa'] . ')' ); ?></option><?php endforeach; ?>
+					</select></td></tr>
+					<tr><th><label for="scp-b-file">Datoteka</label></th><td><input type="file" name="datoteka" id="scp-b-file" accept=".csv,.txt,.xls,.xlsx,.ods" required></td></tr>
+					<tr><th>Stupac s cijenom</th><td>
+						<label><input type="radio" name="stupac" value="sidrena" checked> Sidrena cijena (stupac „sidrena_cijena“ ili „bazna_cijena“)</label><br>
+						<label><input type="radio" name="stupac" value="cijena"> Maloprodajna cijena (ako je datoteka cjenik na sam referentni dan, bez stupca sidrene cijene)</label></td></tr>
+					<tr><th><label for="scp-b-datum">Datum sidrene cijene</label></th><td><input type="date" name="datum" id="scp-b-datum" value="<?php echo esc_attr( (string) SCP_Settings::get( 'referentni_datum' ) ); ?>" required></td></tr>
+					<tr><th>Postojeći zapisi</th><td><label><input type="checkbox" name="prepisi" value="1"> Prepiši postojeće sidrene cijene istih artikala (inače ostaju kakve jesu)</label></td></tr>
+				</table>
+				<?php submit_button( 'Uvezi sidrene cijene', 'primary', 'submit', false ); ?>
+			</form>
+		</div>
+		<?php
+	}
+
+	public static function import_bazne(): void {
+		check_admin_referer( 'scp_import_bazne' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nemate ovlasti.' );
+		}
+		$store_id = isset( $_POST['store'] ) ? sanitize_key( wp_unslash( $_POST['store'] ) ) : '';
+		if ( ! SCP_Settings::store( $store_id ) ) {
+			self::redirect( 'sidrene', 'Nepoznata poslovnica.', true );
+		}
+		$tmp  = isset( $_FILES['datoteka']['tmp_name'] ) ? sanitize_text_field( (string) $_FILES['datoteka']['tmp_name'] ) : '';
+		$orig = isset( $_FILES['datoteka']['name'] ) ? sanitize_file_name( (string) $_FILES['datoteka']['name'] ) : '';
+		$ext  = strtolower( pathinfo( $orig, PATHINFO_EXTENSION ) );
+		if ( $tmp === '' || ! is_uploaded_file( $tmp ) || ! in_array( $ext, SCP_Convert::supported_extensions(), true ) ) {
+			self::redirect( 'sidrene', 'Datoteka nije primljena ili vrsta nije podržana.', true );
+		}
+		$datum = isset( $_POST['datum'] ) ? sanitize_text_field( wp_unslash( $_POST['datum'] ) ) : '';
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $datum ) ) {
+			self::redirect( 'sidrene', 'Neispravan datum.', true );
+		}
+		$stupac  = ( isset( $_POST['stupac'] ) && sanitize_key( wp_unslash( $_POST['stupac'] ) ) === 'cijena' ) ? 'cijena' : 'sidrena';
+		$res     = self::import_bazne_file( $store_id, $tmp, $ext, $orig, $datum, $stupac, ! empty( $_POST['prepisi'] ) );
+		if ( ! empty( $res['greska'] ) ) {
+			self::redirect( 'sidrene', $res['greska'], true );
+		}
+		$nula = $res['bez_cijene'];
+		self::redirect( 'sidrene', sprintf( 'Uvezeno: %d sidrenih cijena (datum %s). Već postojalo i zadržano: %d. Bez cijene (0,00 ili prazno), dobit će cijenu pri prvoj objavi: %d.', $res['upisano'], SCP_Settings::format_date( $datum ), $res['preskoceno'], $nula ) );
+	}
+
+	/**
+	 * Uvoz sidrenih cijena iz datoteke (bez web obrasca; koristi ga i handler).
+	 *
+	 * @return array{upisano:int,preskoceno:int,bez_cijene:int,greska?:string}
+	 */
+	public static function import_bazne_file( string $store_id, string $path, string $ext, string $orig, string $datum, string $stupac, bool $prepisi ): array {
+		wp_raise_memory_limit( 'admin' );
+		if ( function_exists( 'set_time_limit' ) ) {
+			set_time_limit( 300 );
+		}
+		$p = SCP_Convert::parse( $path, $ext );
+		if ( $p['errors'] ) {
+			return [ 'upisano' => 0, 'preskoceno' => 0, 'bez_cijene' => 0, 'greska' => implode( ' ', $p['errors'] ) ];
+		}
+		if ( ! isset( $p['map'][ $stupac ] ) ) {
+			return [ 'upisano' => 0, 'preskoceno' => 0, 'bez_cijene' => 0, 'greska' => 'U datoteci nema stupca ' . ( $stupac === 'sidrena' ? 'sidrene cijene (sidrena_cijena / bazna_cijena)' : 'maloprodajne cijene' ) . '. Zaglavlje: ' . implode( ' | ', $p['header'] ) ];
+		}
+		$m     = $p['map'];
+		$items = [];
+		$nula  = 0;
+		foreach ( $p['rows'] as $r ) {
+			$sifra  = trim( (string) ( isset( $m['sifra'] ) ? ( $r[ $m['sifra'] ] ?? '' ) : '' ) );
+			$barkod = trim( (string) ( $r[ $m['barkod'] ] ?? '' ) );
+			$val    = trim( (string) ( $r[ $m[ $stupac ] ] ?? '' ) );
+			$val    = $val === '' ? 0.0 : (float) str_replace( ',', '.', str_contains( $val, ',' ) && str_contains( $val, '.' ) ? str_replace( '.', '', $val ) : $val );
+			if ( $sifra === '' && $barkod === '' ) {
+				continue;
+			}
+			if ( $val <= 0 ) {
+				++$nula;
+				continue;
+			}
+			$items[] = [ 'sifra' => $sifra, 'barkod' => $barkod, 'cijena' => $val, 'datum' => $datum, 'izvor' => 'uvoz' ];
+		}
+		$res   = SCP_Bazne::save( $store_id, $items, $prepisi );
+		$uvozi = get_option( 'scp_bazne_uvoz', [] );
+		$uvozi = is_array( $uvozi ) ? $uvozi : [];
+		$uvozi[ $store_id ] = [
+			'vrijeme'    => time(),
+			'datoteka'   => $orig,
+			'upisano'    => $res['upisano'],
+			'bez_cijene' => $nula,
+		];
+		update_option( 'scp_bazne_uvoz', $uvozi, false );
+		return $res + [ 'bez_cijene' => $nula ];
+	}
+
+	public static function export_bazne(): void {
+		check_admin_referer( 'scp_export_bazne' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nemate ovlasti.' );
+		}
+		$store_id = isset( $_GET['store'] ) ? sanitize_key( wp_unslash( $_GET['store'] ) ) : '';
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="sidrene-cijene-' . $store_id . '-' . wp_date( 'Ymd-Hi' ) . '.csv"' );
+		$out = fopen( 'php://output', 'w' );
+		fwrite( $out, "\xEF\xBB\xBF" );
+		fputcsv( $out, [ 'sifra', 'barkod', 'sidrena_cijena', 'datum', 'izvor', 'azurirano' ], ';', '"', '' );
+		foreach ( SCP_Bazne::all( $store_id ) as $r ) {
+			fputcsv( $out, [ $r['sifra'], $r['barkod'], str_replace( '.', ',', (string) $r['cijena'] ), $r['datum'], $r['izvor'], $r['azurirano'] ], ';', '"', '' );
+		}
+		exit;
+	}
+
+	public static function delete_bazne(): void {
+		$store_id = isset( $_GET['store'] ) ? sanitize_key( wp_unslash( $_GET['store'] ) ) : '';
+		check_admin_referer( 'scp_delete_bazne_' . $store_id );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nemate ovlasti.' );
+		}
+		$n = SCP_Bazne::delete_store( $store_id );
+		self::redirect( 'sidrene', 'Obrisano sidrenih cijena: ' . $n . '.' );
+	}
+
 	public static function restore_stores(): void {
 		check_admin_referer( 'scp_restore_stores' );
 		if ( ! current_user_can( 'manage_options' ) ) {
@@ -554,14 +720,22 @@ final class SCP_Admin {
 		if ( $parsed['errors'] ) {
 			self::redirect( 'objava', implode( ' ', $parsed['errors'] ), true );
 		}
-		$t = SCP_Convert::transform( $parsed, SCP_Settings::all() );
+		$t = SCP_Convert::transform( $parsed, SCP_Settings::all(), $store['id'], $vrijedi_za );
 		if ( ! $t['rows'] ) {
 			self::redirect( 'objava', 'U datoteci nema nijednog retka s barkodom/nazivom i cijenom.', true );
 		}
 		// Spremi pretvorene retke u tmp mapu, u pregledu se pokazuje i potvrđuje objava.
 		SCP_Files::ensure_dirs();
 		$token = wp_generate_password( 16, false );
-		file_put_contents( SCP_Files::tmp_dir() . 'pregled_' . $token . '.json', wp_json_encode( $t['rows'] ) );
+		file_put_contents(
+			SCP_Files::tmp_dir() . 'pregled_' . $token . '.json',
+			wp_json_encode(
+				[
+					'rows' => $t['rows'],
+					'nove' => $t['nove'],
+				]
+			)
+		);
 		set_transient(
 			'scp_preview_' . $token,
 			[
@@ -590,13 +764,19 @@ final class SCP_Admin {
 		if ( ! is_array( $preview ) || (int) $preview['user'] !== get_current_user_id() || ! file_exists( $path ) ) {
 			self::redirect( 'objava', 'Pregled je istekao, prenesi datoteku ponovno.', true );
 		}
-		$rows = json_decode( (string) file_get_contents( $path ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- lokalna privremena datoteka.
+		$data = json_decode( (string) file_get_contents( $path ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- lokalna privremena datoteka.
+		$rows = is_array( $data ) && isset( $data['rows'] ) ? $data['rows'] : $data;
+		$nove = is_array( $data ) && isset( $data['nove'] ) ? (array) $data['nove'] : [];
 		delete_transient( 'scp_preview_' . $token );
 		wp_delete_file( $path );
 		if ( ! is_array( $rows ) || ! $rows ) {
 			self::redirect( 'objava', 'Podaci pregleda nisu čitljivi, prenesi datoteku ponovno.', true );
 		}
 		$r = SCP_Convert::write( $preview['store'], $rows, SCP_Settings::all(), $preview['vrijedi_za'] ?? null );
+		if ( $nove ) {
+			// Postojeće bazne cijene se nikad ne prepisuju objavom; upisuju se samo artikli kojih još nema.
+			SCP_Bazne::save( $preview['store']['id'], $nove, false );
+		}
 		self::redirect( 'objava', sprintf( 'Cjenik objavljen za %s: %s (%d artikala). XML: %s', SCP_Settings::format_date( $r['vrijedi_za'] ), $r['csv'], count( $rows ), $r['xml'] ) );
 	}
 
