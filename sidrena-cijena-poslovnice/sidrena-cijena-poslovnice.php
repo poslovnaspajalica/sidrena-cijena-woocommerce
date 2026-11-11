@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sidrena cijena - cjenik poslovnica
  * Description: Dnevna objava strojno čitljivog cjenika (.csv/.xml) za fizičke poslovnice prema Odluci NN 101/2026: ručni upload CSV-a ili Excela s blagajne, pretvorba u propisanu strukturu, objava na stranici /cjenik/. Radi samostalno ili uz plugin "Sidrena cijena za WooCommerce".
- * Version: 1.3.0
+ * Version: 1.4.0
  * Author: Poslovna spajalica
  * Requires at least: 6.5
  * Requires PHP: 8.1
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SCP_VERSION', '1.3.0' );
+define( 'SCP_VERSION', '1.4.0' );
 define( 'SCP_FILE', __FILE__ );
 define( 'SCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SCP_URL', plugin_dir_url( __FILE__ ) );
@@ -50,19 +50,10 @@ final class Sidrena_Cijena_Poslovnice_Plugin {
 		if ( get_option( 'scp_version' ) === SCP_VERSION ) {
 			return;
 		}
-		if ( SCP_Settings::restore_if_missing() ) {
-			add_action(
-				'admin_notices',
-				static function (): void {
-					echo '<div class="notice notice-warning"><p><strong>Cjenik poslovnica:</strong> postavke poslovnica vraćene su iz rezervne kopije nakon nadogradnje.</p></div>';
-				}
-			);
-		}
-		if ( ! get_option( SCP_Settings::OPTION ) ) {
-			update_option( SCP_Settings::OPTION, SCP_Settings::defaults(), false );
-		}
-		if ( ! get_option( SCP_Settings::BACKUP ) ) {
-			update_option( SCP_Settings::BACKUP, SCP_Settings::all(), false );
+		// Zadane postavke se ne zapisuju (čitaju se iz koda); postojeći podaci se nikad ne prepisuju.
+		$migrated = SCP_Settings::migrate_stores();
+		if ( $migrated !== '' ) {
+			set_transient( 'scp_migrated', $migrated, DAY_IN_SECONDS );
 		}
 		SCP_Files::ensure_dirs();
 		SCP_Files::schedule_reminder();
@@ -81,13 +72,8 @@ final class Sidrena_Cijena_Poslovnice_Plugin {
 	}
 
 	public static function activate(): void {
-		SCP_Settings::restore_if_missing();
-		if ( ! get_option( SCP_Settings::OPTION ) ) {
-			update_option( SCP_Settings::OPTION, SCP_Settings::defaults(), false );
-		}
-		if ( ! get_option( SCP_Settings::BACKUP ) ) {
-			update_option( SCP_Settings::BACKUP, SCP_Settings::all(), false );
-		}
+		// Aktivacija ne zapisuje zadane postavke i ne dira postojeće podatke; samo prenosi popis iz starijih verzija.
+		SCP_Settings::migrate_stores();
 		// Ovlast za upload: administrator i voditelj trgovine, plus zasebna uloga za djelatnike poslovnica.
 		foreach ( [ 'administrator', 'shop_manager' ] as $role_name ) {
 			$role = get_role( $role_name );

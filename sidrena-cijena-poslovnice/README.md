@@ -18,6 +18,25 @@ točki VI. Odluke i objavi na stranici `/cjenik/`. Radi samostalno (ne treba Woo
 - Zadnji objavljeni cjenik nikad se ne briše retencijom (nacrt: dostupnost 30 dana od zadnje objave).
 - Nacrti se još mogu promijeniti; nakon objave konačnih pravilnika u Narodnim novinama plugin treba provjeriti.
 
+## Gdje se podaci čuvaju
+
+Sve je u tablici `wp_options` (prefiks ovisi o instalaciji):
+
+| Zapis | Sadržaj |
+|---|---|
+| `scp_poslovnice` | popis poslovnica; mijenja se samo spremanjem u adminu, vraćanjem iz povijesti ili uvozom |
+| `scp_poslovnice_povijest` | zadnjih 30 verzija popisa, s vremenom, korisnikom i izvorom promjene |
+| `scp_brojaci` | sljedeći broj pohrane po poslovnici; mijenja se pri svakoj objavi |
+| `scp_settings`, `scp_settings_backup` | ostale postavke i njihova kopija |
+| `scp_manifest` | za koji dan vrijedi koja objavljena datoteka |
+
+Objavljene datoteke su u `wp-content/uploads/sidrena-cijena/poslovnice/<id poslovnice>/`.
+
+Aktivacija, deaktivacija, nadogradnja i objava cjenika nikad ne mijenjaju popis poslovnica. Zadane postavke se ne
+zapisuju u bazu nego čitaju iz koda, a svako spremanje čita trenutnu vrijednost izravno iz baze, mimo object cachea,
+pa zastarjeli keš ne može prepisati novije podatke. Na kartici Poslovnice su povijest s vraćanjem jednim klikom te
+izvoz i uvoz popisa u JSON-u. Nadogradnja sa starijih verzija sama prenosi popis iz `scp_settings` u `scp_poslovnice`.
+
 ## Instalacija
 
 1. Instaliraj zip kroz Dodaci → Dodaj novi → Prenesi dodatak i aktiviraj. Potreban PHP 8.1+, WordPress 6.5+.

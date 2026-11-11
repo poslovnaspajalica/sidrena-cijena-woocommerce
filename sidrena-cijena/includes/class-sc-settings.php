@@ -64,9 +64,18 @@ final class SC_Settings {
 		return $all[ $key ] ?? null;
 	}
 
+	/**
+	 * Spremi postavke. Trenutna vrijednost čita se izravno iz baze (mimo object cachea),
+	 * tako da zastarjeli keš ne može prepisati novije postavke starijima.
+	 */
 	public static function update( array $data ): void {
-		$all = array_merge( self::all(), $data );
+		global $wpdb;
+		$row     = $wpdb->get_row( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", self::OPTION ) );
+		$current = $row ? maybe_unserialize( $row->option_value ) : [];
+		$all     = array_merge( self::defaults(), is_array( $current ) ? $current : [], $data );
 		update_option( self::OPTION, $all, false );
+		wp_cache_delete( self::OPTION, 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
 		wp_cache_delete( 'excluded_cat_tt', 'sidrena_cijena' );
 	}
 

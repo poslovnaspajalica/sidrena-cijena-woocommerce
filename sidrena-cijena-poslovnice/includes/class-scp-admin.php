@@ -14,6 +14,9 @@ final class SCP_Admin {
 		add_action( 'admin_post_scp_upload', [ __CLASS__, 'handle_upload' ] );
 		add_action( 'admin_post_scp_publish', [ __CLASS__, 'handle_publish' ] );
 		add_action( 'admin_post_scp_save_stores', [ __CLASS__, 'save_stores' ] );
+		add_action( 'admin_post_scp_restore_stores', [ __CLASS__, 'restore_stores' ] );
+		add_action( 'admin_post_scp_export_stores', [ __CLASS__, 'export_stores' ] );
+		add_action( 'admin_post_scp_import_stores', [ __CLASS__, 'import_stores' ] );
 		add_action( 'admin_post_scp_save_settings', [ __CLASS__, 'save_settings' ] );
 		add_action( 'admin_post_scp_delete_file', [ __CLASS__, 'delete_file' ] );
 		add_action( 'admin_post_scp_template', [ __CLASS__, 'download_template' ] );
@@ -67,6 +70,11 @@ final class SCP_Admin {
 	public static function notices(): void {
 		if ( ! current_user_can( SCP_CAP ) ) {
 			return;
+		}
+		$migrated = get_transient( 'scp_migrated' );
+		if ( $migrated && current_user_can( 'manage_options' ) ) {
+			delete_transient( 'scp_migrated' );
+			echo '<div class="notice notice-info"><p><strong>Cjenik poslovnica:</strong> popis poslovnica prenesen u zaseban zapis (izvor: ' . esc_html( (string) $migrated ) . ').</p></div>';
 		}
 		$screen = get_current_screen();
 		if ( ! $screen || ! in_array( $screen->id, [ 'dashboard', 'toplevel_page_' . self::PAGE ], true ) ) {
@@ -292,7 +300,8 @@ final class SCP_Admin {
 				'PHP / WordPress'              => PHP_VERSION . ' / ' . get_bloginfo( 'version' ),
 				'Mapa cjenika'                 => SCP_Files::base_dir() . ( is_dir( SCP_Files::base_dir() ) ? ' (postoji' . ( wp_is_writable( SCP_Files::base_dir() ) ? ', zapisiva)' : ', NIJE zapisiva)' ) : ' (NE postoji)' ),
 				'Poslovnice u postavkama'      => count( $stores ) . ( $stores ? ': ' . implode( ', ', array_map( static fn( $s ) => $s['id'] . ' (' . ( $s['naziv'] ?: $s['adresa'] ) . ')', $stores ) ) : '' ),
-				'Rezervna kopija postavki'     => is_array( $backup ) ? count( $backup['poslovnice'] ?? [] ) . ' poslovnica' : 'nema',
+				'Pohrana popisa poslovnica'    => 'wp_options: ' . SCP_Settings::STORES . ' (' . ( is_array( SCP_Settings::raw( SCP_Settings::STORES ) ) ? count( (array) SCP_Settings::raw( SCP_Settings::STORES ) ) . ' u bazi' : 'NEMA zapisa' ) . '), povijest: ' . count( SCP_Settings::history() ) . ' verzija, brojači: ' . SCP_Settings::COUNTERS,
+				'Rezervna kopija postavki'     => is_array( $backup ) ? 'postoji (' . SCP_Settings::BACKUP . ')' : 'nema',
 				'Vanjski object cache'         => wp_using_ext_object_cache() ? 'da' : 'ne',
 				'Webshop plugin'               => class_exists( 'SC_Public' ) ? 'aktivan (zajednička stranica /cjenik/)' : 'nije aktivan',
 				'Greške uploada (upload_dir)'  => ! empty( $u['error'] ) ? esc_html( (string) $u['error'] ) : 'nema',
@@ -361,6 +370,121 @@ final class SCP_Admin {
 			<?php submit_button( 'Spremi poslovnice' ); ?>
 		</form>
 		<?php
+		self::render_store_safety();
+	}
+
+	/** Povijest verzija popisa poslovnica, izvoz i uvoz. */
+	private static function render_store_safety(): void {
+		$history = SCP_Settings::history();
+		?>
+		<div class="scp-card">
+			<h2>Povijest popisa poslovnica</h2>
+			<p class="description">Svako spremanje popisa zapisuje verziju (zadnjih 30). Ako poslovnice nestanu ili su krivo izmijenjene, vrati jednu od ranijih verzija. Popis je spremljen u bazi u zapisu <code><?php echo esc_html( SCP_Settings::STORES ); ?></code>, odvojeno od ostalih postavki, i nikad ga ne mijenjaju aktivacija, deaktivacija, nadogradnja ni objava cjenika.</p>
+			<?php if ( ! $history ) : ?>
+				<p>Još nema zapisanih verzija.</p>
+			<?php else : ?>
+				<table class="widefat striped"><thead><tr><th>Vrijeme</th><th>Korisnik</th><th>Izvor</th><th>Poslovnice</th><th></th></tr></thead><tbody>
+				<?php foreach ( $history as $i => $h ) : ?>
+					<tr>
+						<td><?php echo esc_html( wp_date( 'd.m.Y. H:i:s', (int) $h['vrijeme'] ) ); ?></td>
+						<td><?php echo esc_html( (string) $h['korisnik'] ); ?></td>
+						<td><?php echo esc_html( (string) $h['izvor'] ); ?></td>
+						<td><?php echo esc_html( count( (array) $h['poslovnice'] ) . ': ' . implode( ', ', array_map( static fn( $p ) => $p['naziv'] ?: $p['adresa'], (array) $h['poslovnice'] ) ) ); ?></td>
+						<td><?php if ( $i > 0 ) : ?><a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_restore_stores&v=' . (int) $i ), 'scp_restore_stores' ) ); ?>" onclick="return confirm('Vratiti ovu verziju popisa poslovnica?')">Vrati ovu verziju</a><?php else : ?>trenutna<?php endif; ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody></table>
+			<?php endif; ?>
+		</div>
+		<div class="scp-card">
+			<h2>Izvoz i uvoz poslovnica</h2>
+			<p><a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_export_stores' ), 'scp_export_stores' ) ); ?>">Preuzmi poslovnice (JSON)</a>
+			<span class="description">Za sigurnosnu kopiju ili prijenos na drugu stranicu.</span></p>
+			<form method="post" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'scp_import_stores' ); ?>
+				<input type="hidden" name="action" value="scp_import_stores">
+				<input type="file" name="json" accept=".json,application/json" required>
+				<?php submit_button( 'Uvezi poslovnice', 'secondary', 'submit', false ); ?>
+				<span class="description">Zamjenjuje trenutni popis; prethodni ostaje u povijesti.</span>
+			</form>
+		</div>
+		<?php
+	}
+
+	public static function restore_stores(): void {
+		check_admin_referer( 'scp_restore_stores' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nemate ovlasti.' );
+		}
+		$v       = isset( $_GET['v'] ) ? absint( $_GET['v'] ) : -1;
+		$history = SCP_Settings::history();
+		if ( ! isset( $history[ $v ] ) ) {
+			self::redirect( 'poslovnice', 'Verzija nije pronađena.', true );
+		}
+		SCP_Settings::save_stores( (array) $history[ $v ]['poslovnice'], 'vraćeno: verzija od ' . wp_date( 'd.m.Y. H:i', (int) $history[ $v ]['vrijeme'] ) );
+		foreach ( SCP_Settings::stores() as $s ) {
+			SCP_Files::ensure_dirs( $s['id'] );
+		}
+		SCP_Files::write_index();
+		self::redirect( 'poslovnice', 'Popis poslovnica vraćen.' );
+	}
+
+	public static function export_stores(): void {
+		check_admin_referer( 'scp_export_stores' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nemate ovlasti.' );
+		}
+		header( 'Content-Type: application/json; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="poslovnice-' . sanitize_title( wp_parse_url( home_url(), PHP_URL_HOST ) ) . '-' . wp_date( 'Ymd-Hi' ) . '.json"' );
+		echo wp_json_encode(
+			[
+				'plugin'     => 'sidrena-cijena-poslovnice',
+				'verzija'    => SCP_VERSION,
+				'izvezeno'   => wp_date( 'c' ),
+				'poslovnice' => SCP_Settings::stores(),
+			],
+			JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+		);
+		exit;
+	}
+
+	public static function import_stores(): void {
+		check_admin_referer( 'scp_import_stores' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nemate ovlasti.' );
+		}
+		$tmp = isset( $_FILES['json']['tmp_name'] ) ? sanitize_text_field( (string) $_FILES['json']['tmp_name'] ) : '';
+		if ( $tmp === '' || ! is_uploaded_file( $tmp ) || filesize( $tmp ) > 512 * KB_IN_BYTES ) {
+			self::redirect( 'poslovnice', 'Datoteka nije primljena.', true );
+		}
+		$data = json_decode( (string) file_get_contents( $tmp ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- lokalna prenesena datoteka.
+		$list = is_array( $data ) && isset( $data['poslovnice'] ) && is_array( $data['poslovnice'] ) ? $data['poslovnice'] : null;
+		if ( $list === null ) {
+			self::redirect( 'poslovnice', 'Datoteka nije izvoz poslovnica iz ovog plugina.', true );
+		}
+		$out = [];
+		foreach ( $list as $p ) {
+			if ( ! is_array( $p ) || empty( $p['id'] ) ) {
+				continue;
+			}
+			$out[] = [
+				'id'           => sanitize_key( (string) $p['id'] ),
+				'naziv'        => sanitize_text_field( (string) ( $p['naziv'] ?? '' ) ),
+				'oblik'        => sanitize_text_field( (string) ( $p['oblik'] ?? 'prodavaonica' ) ) ?: 'prodavaonica',
+				'adresa'       => sanitize_text_field( (string) ( $p['adresa'] ?? '' ) ),
+				'oznaka'       => sanitize_text_field( (string) ( $p['oznaka'] ?? '' ) ),
+				'broj_pohrane' => (string) max( 1, (int) ( $p['broj_pohrane'] ?? 1 ) ),
+			];
+		}
+		if ( ! $out ) {
+			self::redirect( 'poslovnice', 'U datoteci nema poslovnica.', true );
+		}
+		SCP_Settings::save_stores( $out, 'uvoz iz JSON-a' );
+		foreach ( $out as $s ) {
+			SCP_Files::ensure_dirs( $s['id'] );
+		}
+		SCP_Files::write_index();
+		self::redirect( 'poslovnice', 'Uvezeno poslovnica: ' . count( $out ) . '.' );
 	}
 
 	private static function tab_settings(): void {
@@ -508,7 +632,7 @@ final class SCP_Admin {
 		if ( ! $out && SCP_Settings::stores() && empty( $_POST['potvrdi_brisanje'] ) ) {
 			self::redirect( 'poslovnice', 'Sve poslovnice bi bile obrisane. Ako to stvarno želiš, označi potvrdu ispod tablice i spremi ponovno.', true );
 		}
-		SCP_Settings::update( [ 'poslovnice' => $out ] );
+		SCP_Settings::save_stores( $out, 'spremanje u adminu' );
 		foreach ( $out as $s ) {
 			SCP_Files::ensure_dirs( $s['id'] );
 		}

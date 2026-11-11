@@ -77,19 +77,9 @@ final class SCP_Files {
 		return implode( '_', $parts ) . '.' . $ext;
 	}
 
-	/** Sljedeći broj pohrane za poslovnicu i povećanje brojača. */
+	/** Sljedeći broj pohrane za poslovnicu (samo brojač; popis poslovnica se ne mijenja). */
 	public static function next_seq( string $store_id ): int {
-		$stores = SCP_Settings::stores();
-		$seq    = 1;
-		foreach ( $stores as &$st ) {
-			if ( $st['id'] === $store_id ) {
-				$seq                = max( 1, (int) ( $st['broj_pohrane'] ?? 1 ) );
-				$st['broj_pohrane'] = (string) ( $seq + 1 );
-			}
-		}
-		unset( $st );
-		SCP_Settings::update( [ 'poslovnice' => $stores ] );
-		return $seq;
+		return SCP_Settings::next_seq( $store_id );
 	}
 
 	/* ---------- Manifest: za koji dan datoteka vrijedi ---------- */
