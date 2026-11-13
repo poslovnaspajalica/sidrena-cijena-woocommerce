@@ -46,22 +46,26 @@ C:\Cjenici\
 
 1. Kopiraj tri `.ps1` skripte u `C:\Cjenici\skripte\`. Uz njih napravi `kljuc.txt` i u njega zalijepi ključ
    (samo ključ, jedan red). Datoteku ne šalji e-mailom i ne stavljaj na dijeljene mape.
-2. Provjeri parametre na vrhu `wand-izvoz-cjenika.ps1`: `$WandExe` (putanja do `W_EXE.EXE` u podmapi `SYS`
-   instalacije Wanda), `$WandMapa` (`C:\Cjenici\_wand`), `$ArhivaMapa` (`C:\Cjenici`).
-3. U Wandu, prijavljen kao Windows korisnik pod kojim će raditi zadaci, napravi jedan **ručni** izvoz sidrenih
+2. Provjeri parametre na vrhu `wand-izvoz-cjenika.ps1`: `$WandExe` (`W_EXE.EXE` iz **lokalne** instalacije, ista mapa
+   kao `WAND.EXE` iz ikone Wanda, npr. `C:\4d\Wand\SYS\W_EXE.EXE`; kopija na serverskom disku W: javlja
+   "Podatak o lokaciji servera 4D Wanda nije upisan"), `$WandMapa` (`C:\Cjenici\_wand`), `$ArhivaMapa` (`C:\Cjenici`).
+3. U `C:\4D\Wand\Win\4D_Wand.ini` (ili `4D_Wand_<Windows korisnik>.ini`) u sekciji `[WAND]` upiši
+   `AutoUser=<ID>`: ID korisnika 4D Wanda pod kojim se izvršavaju automatske obrade (Korisnici i prava pristupa).
+   Bez toga `W_EXE.EXE ANA=142` završi bez greške, ali ne napravi nijednu datoteku.
+4. U Wandu, prijavljen kao Windows korisnik pod kojim će raditi zadaci, napravi jedan **ručni** izvoz sidrenih
    cjenika s putanjom `C:\Cjenici\_wand`. Wand tu putanju pamti za automatske izvoze.
-4. Za istog korisnika u Wandu provjeri tvrtku i godinu ("Godina za automatske provjere, importe i exporte").
+5. Za istog korisnika u Wandu provjeri tvrtku i godinu ("Godina za automatske provjere, importe i exporte").
    **Početkom 2027. godinu provjeri ponovno.**
-5. Provjera veze i ključa (ništa ne šalje):
+6. Provjera veze i ključa (ništa ne šalje):
    ```
    powershell -ExecutionPolicy Bypass -File C:\Cjenici\skripte\posalji-cjenike.ps1 -Provjera
    ```
    Ispisuje poslovnice sa šiframa skladišta kako ih vidi web.
-6. Kao administrator stvori zadatke (pita za Windows korisnika i lozinku):
+7. Kao administrator stvori zadatke (pita za Windows korisnika i lozinku):
    ```
    powershell -ExecutionPolicy Bypass -File C:\Cjenici\skripte\instaliraj-zadatak.ps1
    ```
-7. Probno pokretanje:
+8. Probno pokretanje:
    ```
    Start-ScheduledTask -TaskName 'Cjenik poslovnica - izvoz iz Wanda'
    ```

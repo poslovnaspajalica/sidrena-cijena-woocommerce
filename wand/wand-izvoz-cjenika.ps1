@@ -19,8 +19,9 @@
 #>
 [CmdletBinding()]
 param(
-    # Puna putanja do W_EXE.EXE (obično u podmapi SYS instalacije Wanda).
-    [string]$WandExe = 'W:\4D\Wand\SYS\W_EXE.EXE',
+    # Puna putanja do W_EXE.EXE u LOKALNOJ (klijentskoj) instalaciji Wanda, ista mapa kao WAND.EXE iz ikone.
+    # Kopija na serverskom disku (W:\4D\Wand\SYS) javlja "Podatak o lokaciji servera 4D Wanda nije upisan".
+    [string]$WandExe = 'C:\4d\Wand\SYS\W_EXE.EXE',
 
     # Mapa u koju Wand zapisuje izvoz (postavlja se jednom, ručnim izvozom u Wandu).
     [string]$WandMapa = 'C:\Cjenici\_wand',
