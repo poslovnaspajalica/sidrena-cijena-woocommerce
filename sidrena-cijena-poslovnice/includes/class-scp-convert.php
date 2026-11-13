@@ -299,13 +299,16 @@ final class SCP_Convert {
 	 * vrijednosti vraćaju se u 'nove' i upisuju u tablicu tek pri objavi.
 	 */
 	public static function transform( array $parsed, array $s, ?string $store_id = null, ?string $vrijedi_za = null ): array {
-		$bazne     = $store_id ? SCP_Bazne::load( $store_id ) : [ 'k' => [], 'b' => [] ];
-		$ima_bazne = ! empty( $bazne['k'] );
-		$dan       = $vrijedi_za ?: wp_date( 'Y-m-d' );
-		$nove      = [];
-		$map     = $parsed['map'];
-		$g       = static fn( array $r, string $f ): ?string => isset( $map[ $f ], $r[ $map[ $f ] ] ) ? (string) $r[ $map[ $f ] ] : null;
-		$stats   = [
+		$bazne        = $store_id ? SCP_Bazne::load( $store_id ) : [
+			'k' => [],
+			'b' => [],
+		];
+		$ima_bazne    = ! empty( $bazne['k'] );
+		$dan          = $vrijedi_za ?: wp_date( 'Y-m-d' );
+		$nove         = [];
+		$map          = $parsed['map'];
+		$g            = static fn( array $r, string $f ): ?string => isset( $map[ $f ], $r[ $map[ $f ] ] ) ? (string) $r[ $map[ $f ] ] : null;
+		$stats        = [
 			'ukupno'           => 0,
 			'akcija'           => 0,
 			'bez_sidrene'      => 0,
@@ -319,10 +322,11 @@ final class SCP_Convert {
 			'bazna_nova'       => 0,
 			'bazna_razlika'    => 0,
 			'jm_ispravljeno'   => 0,
+			'bazna_ceka'       => 0,
 		];
-		$default = (string) ( $s['dostupnost_zadano'] ?? 'dostupno' );
+		$default      = (string) ( $s['dostupnost_zadano'] ?? 'dostupno' );
 		$marka_zadano = trim( (string) ( $s['marka_zadano'] ?? '' ) );
-		$out     = [];
+		$out          = [];
 		foreach ( $parsed['rows'] as $r ) {
 			$cijena   = self::num( $g( $r, 'cijena' ) );
 			$akcijska = self::num( $g( $r, 'akcijska' ) );
@@ -340,11 +344,13 @@ final class SCP_Convert {
 				++$stats['bez_cijene'];
 				continue;
 			}
-			$on_sale = $akcijska !== null && $akcijska > 0 && $akcijska < $cijena;
+			$on_sale     = $akcijska !== null && $akcijska > 0 && $akcijska < $cijena;
+			$redovna_nep = false; // redovna cijena nije poznata (u datoteci je samo akcijska)
 			if ( ! $on_sale && $akcijska === null && self::is_yes( $g( $r, 'posebni_oblik' ) ) ) {
 				// Format cjenika iz blagajne: maloprodajna cijena je već akcijska, a akcija je označena s DA.
-				$on_sale  = true;
-				$akcijska = $cijena;
+				$on_sale     = true;
+				$akcijska    = $cijena;
+				$redovna_nep = true;
 			}
 			$sifra   = trim( (string) $g( $r, 'sifra' ) );
 			$iz_dat  = self::num( $g( $r, 'sidrena' ) );
@@ -366,16 +372,32 @@ final class SCP_Convert {
 				$s_datum = $sd;
 				++$stats['bazna_datoteka'];
 				if ( $store_id && ( $sifra !== '' || $barkod !== '' ) ) {
-					$nove[] = [ 'sifra' => $sifra, 'barkod' => $barkod, 'cijena' => $iz_dat, 'datum' => $sd, 'izvor' => 'datoteka' ];
+					$nove[] = [
+						'sifra'  => $sifra,
+						'barkod' => $barkod,
+						'cijena' => $iz_dat,
+						'datum'  => $sd,
+						'izvor'  => 'datoteka',
+					];
 				}
+			} elseif ( $ima_bazne && $redovna_nep && ( $sifra !== '' || $barkod !== '' ) ) {
+				// Novi artikl na akciji, a redovna cijena nije u datoteci: akcijska se ne smije upisati kao bazna.
+				// Bazna se upisuje prvog dana kad se artikl objavi bez akcije.
+				++$stats['bazna_ceka'];
 			} elseif ( $ima_bazne && ( $sifra !== '' || $barkod !== '' ) ) {
 				// Novi artikl: bazna je redovna (ne akcijska) cijena na dan prvog uvrštenja.
 				$sidrena = $cijena;
 				$s_datum = $dan;
 				++$stats['bazna_nova'];
-				$nove[] = [ 'sifra' => $sifra, 'barkod' => $barkod, 'cijena' => $cijena, 'datum' => $dan, 'izvor' => 'novi' ];
+				$nove[] = [
+					'sifra'  => $sifra,
+					'barkod' => $barkod,
+					'cijena' => $cijena,
+					'datum'  => $dan,
+					'izvor'  => 'novi',
+				];
 			}
-			$dost    = self::availability( $g( $r, 'dostupnost' ), $default );
+			$dost = self::availability( $g( $r, 'dostupnost' ), $default );
 
 			$jedinica = trim( (string) $g( $r, 'jedinica' ) );
 			$cij_jm   = self::num( $g( $r, 'cijena_jedinica' ) );
@@ -408,7 +430,7 @@ final class SCP_Convert {
 			$stats['akcija']      += $on_sale ? 1 : 0;
 			$stats['bez_sidrene'] += $sidrena === null ? 1 : 0;
 			$stats['bez_barkoda'] += $barkod === '' ? 1 : 0;
-			$stats['bez_marke'] += $row['marka'] === '' ? 1 : 0;
+			$stats['bez_marke']   += $row['marka'] === '' ? 1 : 0;
 			$stats['nedostupno']  += $dost === 'nedostupno' ? 1 : 0;
 			$out[]                 = apply_filters( 'scp_output_row', $row, $r, $map );
 		}

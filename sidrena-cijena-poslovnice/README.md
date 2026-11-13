@@ -3,7 +3,8 @@
 WordPress plugin za dnevnu objavu strojno čitljivog cjenika (.csv i .xml) za **fizičke poslovnice**, prema
 Odluci o objavi cjenika proizvoda i usluga kao mjera izravne kontrole cijena (NN 101/2026, primjena od 17. 11. 2026. prema NN 110/2026), usklađen s nacrtom Pravilnika o načinu objave cjenika proizvoda.
 
-Djelatnik svaki dan prenese CSV ili Excel s blagajne, plugin ga pretvori u propisanu strukturu, imenuje datoteku po
+Djelatnik svaki dan prenese CSV ili Excel s blagajne (ili ga poslovni program pošalje sam, vidi
+[Automatski prijem](#automatski-prijem)), plugin ga pretvori u propisanu strukturu, imenuje datoteku po
 točki VI. Odluke i objavi na stranici `/cjenik/`. Radi samostalno (ne treba WooCommerce) ili uz plugin
 **Sidrena cijena za WooCommerce**, s kojim dijeli istu stranicu `/cjenik/` s karticama Webshop / Poslovnica.
 
@@ -29,6 +30,8 @@ Kartica **Sidrene cijene** drži trajnu tablicu sidrenih (baznih) cijena za svak
    tablica, a pregled to prikaže.
 3. Artikl kojeg u tablici nema smatra se novim: sidrena mu je redovna cijena na dan prve objave, a ta se vrijednost
    upisuje u tablicu i dalje se ne mijenja. To vrijedi i za artikle koji su u uvozu imali 0,00.
+   Ako se novi artikl prvi put pojavi na akciji, a datoteka ima samo akcijsku cijenu (oznaka `DA` bez redovne
+   cijene), akcijska se ne upisuje kao sidrena: artikl ostaje bez sidrene dok se prvi put ne objavi bez akcije.
 4. Postojeće vrijednosti objava nikad ne mijenja; mijenja ih samo novi uvoz s izričito uključenim prepisivanjem.
 
 Tablicu po poslovnici moguće je preuzeti kao CSV i, uz potvrdu, obrisati. Aktivacija, deaktivacija i nadogradnja je
@@ -50,6 +53,7 @@ Sve je u tablici `wp_options` (prefiks ovisi o instalaciji):
 | `scp_settings`, `scp_settings_backup` | ostale postavke i njihova kopija |
 | `scp_manifest` | za koji dan vrijedi koja objavljena datoteka |
 | tablica `scp_bazne` | sidrene (bazne) cijene po poslovnici i artiklu |
+| `scp_api_log`, `scp_api_stanje` | dnevnik automatskih prijema; broj artikala zadnje objave i otisci poslanih datoteka |
 
 Objavljene datoteke su u `wp-content/uploads/sidrena-cijena/poslovnice/<id poslovnice>/`.
 
@@ -82,6 +86,30 @@ stvarno vrijeme objave, kako traži točka VI. Odluke, a dan za koji cjenik vrij
 (`vrijedi_za`), u `index.json` i na javnoj stranici u stupcu „Vrijedi za“. Datum u budućnosti nije moguć.
 
 Obrada je čista pretvorba datoteke bez upita u bazu; i 25.000 redaka prođe u nekoliko sekundi.
+
+## Automatski prijem
+
+Poslovni program ili blagajna može svaki dan sam poslati datoteku, bez djelatnika. Za 4D Wand gotove skripte za
+Windows Task Scheduler su u mapi [`wand/`](../wand/README.md) repozitorija.
+
+1. **Poslovnice**: svakoj poslovnici upiši **šifru skladišta** (npr. `0000112`) koja se nalazi u nazivu datoteke.
+2. **Postavke → Automatski prijem cjenika**: uključi prijem i spremi; generira se ključ.
+3. Program šalje `POST` na `/wp-json/sidrena-poslovnice/v1/cjenik` sa zaglavljem `X-SCP-Kljuc`, poljem `datoteka`
+   (CSV ili Excel) i po želji poljem `skladiste`. Bez polja `skladiste` poslovnica se traži u nazivu datoteke.
+   `GET /wp-json/sidrena-poslovnice/v1/status` provjerava vezu i ključ i ništa ne mijenja.
+
+Datoteka se pretvara i objavljuje isto kao ručni upload, uključujući sidrene cijene. Odgovori:
+
+| HTTP | Značenje | Što pošiljatelj radi |
+|---|---|---|
+| 200 | objavljeno ili ista datoteka već objavljena | briše datoteku iz reda za slanje |
+| 400, 413, 415, 422 | neispravna datoteka, nepoznato skladište, premalo artikala | ne šalje ponovno; stiže e-mail |
+| 401, 403 | pogrešan ključ ili prijem isključen | provjeri postavke |
+| 409, 429, 5xx | obrada u tijeku, previše pokušaja, greška servera | pokuša ponovno kasnije |
+
+Zaštita: datoteka s manje od 50 % artikala zadnje objave te poslovnice se odbija (postavka, 0 = bez provjere), pa
+krnji izvoz ne zamijeni dobar cjenik. Ista datoteka poslana dvaput objavljuje se jednom. Nakon 10 pogrešnih ključeva
+s iste IP adrese prijem je za nju blokiran sat vremena. Zadnjih 100 prijema vidi se u Postavkama.
 
 ## Ulazna datoteka (CSV ili Excel)
 
@@ -126,7 +154,8 @@ Javno: `/cjenik/` (kartice po objektu), `/cjenik/poslovnica-<id>/latest.csv`, `/
 ## Sigurnost
 Upload samo uz prijavu i ovlast, nonce, ograničenje 20 MB, prihvaća se samo tekst/CSV koji se parsira; datoteke se
 spremaju pod generiranim nazivima u mapu cjenika. Privremene datoteke pregleda vezane su uz korisnika i traju sat
-vremena. Kod prolazi PHPCS WordPress standard bez grešaka (`phpcs.xml.dist`).
+vremena. Automatski prijem traži ključ (usporedba otporna na mjerenje vremena), ograničava pogrešne pokušaje po IP
+adresi i prihvaća samo podržane vrste datoteka do 20 MB. Kod prolazi PHPCS WordPress standard bez grešaka (`phpcs.xml.dist`).
 
 ## Hookovi
 - `scp_output_row` (filter): redak cjenika prije zapisa, s izvornim retkom i mapiranjem stupaca.

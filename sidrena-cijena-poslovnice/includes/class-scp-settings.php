@@ -40,6 +40,10 @@ final class SCP_Settings {
 			'podsjetnik_email'   => '',
 			'javni_slug'         => 'cjenik',
 			'dostupnost_zadano'  => 'dostupno',
+			'api_ukljuceno'      => 0,
+			'api_kljuc'          => '',
+			'api_email'          => '',
+			'api_min_postotak'   => 50,
 		];
 	}
 
@@ -113,16 +117,16 @@ final class SCP_Settings {
 	/**
 	 * Spremi popis poslovnica i zapiši verziju u povijest.
 	 *
-	 * @param array  $list   Poslovnice (id, naziv, oblik, adresa, oznaka, broj_pohrane).
+	 * @param array  $stores Poslovnice (id, naziv, oblik, adresa, oznaka, broj_pohrane).
 	 * @param string $source Izvor promjene (admin, vraćanje, migracija).
 	 */
-	public static function save_stores( array $list, string $source ): void {
-		$list = array_values( array_filter( $list, static fn( $p ) => is_array( $p ) && ! empty( $p['id'] ) ) );
-		self::write( self::STORES, $list );
+	public static function save_stores( array $stores, string $source ): void {
+		$stores = array_values( array_filter( $stores, static fn( $p ) => is_array( $p ) && ! empty( $p['id'] ) ) );
+		self::write( self::STORES, $stores );
 
 		$counters = self::raw( self::COUNTERS );
 		$counters = is_array( $counters ) ? $counters : [];
-		foreach ( $list as $st ) {
+		foreach ( $stores as $st ) {
 			$counters[ $st['id'] ] = max( 1, (int) ( $st['broj_pohrane'] ?? 1 ) );
 		}
 		self::write( self::COUNTERS, $counters );
@@ -136,7 +140,7 @@ final class SCP_Settings {
 				'vrijeme'    => time(),
 				'korisnik'   => $user && $user->exists() ? $user->user_login : '',
 				'izvor'      => $source,
-				'poslovnice' => $list,
+				'poslovnice' => $stores,
 			]
 		);
 		self::write( self::HISTORY, array_slice( $history, 0, 30 ) );
@@ -145,10 +149,10 @@ final class SCP_Settings {
 
 	/** Sljedeći broj pohrane za poslovnicu; povećava samo brojač, popis poslovnica se ne dira. */
 	public static function next_seq( string $store_id ): int {
-		$counters = self::raw( self::COUNTERS );
-		$counters = is_array( $counters ) ? $counters : [];
-		$st       = self::store( $store_id );
-		$seq      = max( 1, (int) ( $counters[ $store_id ] ?? ( $st['broj_pohrane'] ?? 1 ) ) );
+		$counters              = self::raw( self::COUNTERS );
+		$counters              = is_array( $counters ) ? $counters : [];
+		$st                    = self::store( $store_id );
+		$seq                   = max( 1, (int) ( $counters[ $store_id ] ?? ( $st['broj_pohrane'] ?? 1 ) ) );
 		$counters[ $store_id ] = $seq + 1;
 		self::write( self::COUNTERS, $counters );
 		self::$stores_cache = null;
@@ -171,8 +175,8 @@ final class SCP_Settings {
 			return '';
 		}
 		$candidates = [
-			'postavke'          => self::raw( self::OPTION ),
-			'rezervna kopija'   => self::raw( self::BACKUP ),
+			'postavke'        => self::raw( self::OPTION ),
+			'rezervna kopija' => self::raw( self::BACKUP ),
 		];
 		foreach ( $candidates as $label => $src ) {
 			if ( is_array( $src ) && ! empty( $src['poslovnice'] ) && is_array( $src['poslovnice'] ) ) {

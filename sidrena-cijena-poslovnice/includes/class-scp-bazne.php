@@ -96,7 +96,7 @@ final class SCP_Bazne {
 		}
 		$t = self::table();
 		foreach ( $wpdb->get_results( $wpdb->prepare( "SELECT kljuc, barkod, cijena, datum FROM {$t} WHERE store_id = %s", $store_id ), ARRAY_A ) as $r ) { // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- naziv tablice.
-			$v                     = [
+			$v                       = [
 				'cijena' => (float) $r['cijena'],
 				'datum'  => (string) $r['datum'],
 			];
@@ -158,7 +158,7 @@ final class SCP_Bazne {
 		$tail     = $overwrite ? ' ON DUPLICATE KEY UPDATE sifra=VALUES(sifra), barkod=VALUES(barkod), cijena=VALUES(cijena), datum=VALUES(datum), izvor=VALUES(izvor), azurirano=VALUES(azurirano)' : '';
 		foreach ( array_chunk( $vals, 500 ) as $chunk ) {
 			// Svaki element $chunk je već prošao kroz $wpdb->prepare().
-			$r = $wpdb->query( "{$verb} INTO {$t} (store_id,kljuc,sifra,barkod,cijena,datum,izvor,azurirano) VALUES " . implode( ',', $chunk ) . $tail ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$r         = $wpdb->query( "{$verb} INTO {$t} (store_id,kljuc,sifra,barkod,cijena,datum,izvor,azurirano) VALUES " . implode( ',', $chunk ) . $tail ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$affected += (int) $r;
 		}
 		$upisano = $overwrite ? $total : $affected;
