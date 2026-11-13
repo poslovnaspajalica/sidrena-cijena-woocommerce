@@ -17,10 +17,13 @@
 param(
     [string]$VrijemeIzvoza = '05:30',
     [string]$VrijemeSlanja = '05:45',
-    [string]$Mapa = $PSScriptRoot
+    # Mapa sa skriptama. Prazno = mapa u kojoj je ova skripta.
+    [string]$Mapa = ''
 )
 
 $ErrorActionPreference = 'Stop'
+# $PSScriptRoot je u Windows PowerShellu 5.1 prazan u zadanim vrijednostima parametara, pa se mapa traži ovdje.
+if (-not $Mapa) { $Mapa = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition } }
 $izvoz  = Join-Path $Mapa 'wand-izvoz-cjenika.ps1'
 $slanje = Join-Path $Mapa 'posalji-cjenike.ps1'
 foreach ($f in @($izvoz, $slanje, (Join-Path $Mapa 'kljuc.txt'))) {

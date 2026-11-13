@@ -20,7 +20,8 @@ param(
     [string]$Url = 'https://dancingbear.hr/wp-json/sidrena-poslovnice/v1/cjenik',
 
     # Datoteka s ključem iz postavki plugina (Postavke > Automatski prijem cjenika).
-    [string]$KljucDatoteka = (Join-Path $PSScriptRoot 'kljuc.txt'),
+    # Prazno = kljuc.txt u mapi u kojoj je ova skripta.
+    [string]$KljucDatoteka = '',
 
     [string]$ArhivaMapa = 'C:\Cjenici',
 
@@ -31,6 +32,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# $PSScriptRoot je u Windows PowerShellu 5.1 prazan u zadanim vrijednostima parametara, pa se mapa traži ovdje.
+$skriptaMapa = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
+if (-not $KljucDatoteka) { $KljucDatoteka = Join-Path $skriptaMapa 'kljuc.txt' }
 $zaSlanje = Join-Path $ArhivaMapa 'za_slanje'
 $odbijeno = Join-Path $zaSlanje 'odbijeno'
 $logMapa  = Join-Path $ArhivaMapa 'log'
