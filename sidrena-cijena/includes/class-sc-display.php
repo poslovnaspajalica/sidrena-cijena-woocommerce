@@ -82,6 +82,8 @@ final class SC_Display {
 			'.sc-sidrena{display:block;font-size:' . $size . ';font-weight:' . $weight . ';' . ( $color ? 'color:' . $color . ';' : 'opacity:.85;' ) . 'margin-top:.15em;line-height:1.25;white-space:normal;overflow-wrap:anywhere;text-decoration:none}' .
 			'del .sc-sidrena,ins .sc-sidrena{display:none}' .
 			'.sc-sidrena .sc-amount{white-space:nowrap}' .
+			// Datum (5. 11. 2026.) ima pravopisne razmake; u Arialu i sl. fontovima izgledaju preširoko.
+			'.sc-sidrena .sc-datum{white-space:nowrap;word-spacing:-.14em}' .
 			( $custom !== '' ? "\n" . wp_strip_all_tags( $custom ) : '' )
 		);
 	}
@@ -213,7 +215,7 @@ final class SC_Display {
 		$out   = strtr(
 			$label,
 			[
-				'{datum}'     => SC_Settings::format_date( $r['date'], $lang ),
+				'{datum}'     => '<span class="sc-datum">' . esc_html( SC_Settings::format_date( $r['date'], $lang ) ) . '</span>',
 				'{datum_iso}' => $r['date'],
 				'{cijena}'    => '<span class="sc-amount">' . $amount . '</span>',
 			]
