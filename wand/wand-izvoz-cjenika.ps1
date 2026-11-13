@@ -64,8 +64,15 @@ foreach ($m in @($ArhivaMapa, $logMapa, $zaSlanje, $WandMapa)) {
 
 function Log([string]$poruka, [string]$razina = 'INFO') {
     $red = '{0} [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $razina, $poruka
-    Add-Content -LiteralPath $logFile -Value $red -Encoding UTF8
     Write-Host $red
+    # Log ne smije srušiti skriptu (npr. kad datoteku drži drugi korisnik ili nema prava pisanja).
+    try { Add-Content -LiteralPath $logFile -Value $red -Encoding UTF8 -ErrorAction Stop }
+    catch {
+        if (-not $script:logGreska) {
+            $script:logGreska = $true
+            Write-Host ("UPOZORENJE: ne mogu pisati u log {0}: {1}" -f $logFile, $_.Exception.Message)
+        }
+    }
 }
 
 # Samo jedan izvoz u isto vrijeme.
