@@ -13,6 +13,14 @@ Dva zadatka u Windows Task Scheduleru na računalu na kojem radi Wand:
 | 0000114 | Maloprodaja Osijek | Osijek |
 | 0000110 | Maloprodaja Split | Split |
 
+Wand datoteke imenuje ovako, a po šifri skladišta u nazivu skripte i web prepoznaju poslovnicu:
+
+```
+Prodavaonica_Gundulićeva 7, 012101 Centar_PJ2-0000112_2_20261113_111226.csv
+Prodavaonica_Trg Ante Starčevića (pothodnik) , 011440 Centar_PJ4-0000114_2_20261113_111227.csv
+Prodavaonica_Dioklecijanova 6, 011701 Get_PJ3-0000110_2_20261113_111225.csv
+```
+
 ## Mape
 
 ```

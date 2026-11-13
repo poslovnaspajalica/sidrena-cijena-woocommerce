@@ -90,7 +90,8 @@ try {
     Log ("==== Slanje: {0} datoteka ====" -f $datoteke.Count)
 
     foreach ($f in $datoteke) {
-        $sifra = $Skladista | Where-Object { $f.Name -like "*_$($_)_*" } | Select-Object -First 1
+        # Šifra u nazivu, npr. "..._PJ2-0000112_2_20261113_111226.csv", kao cijeli broj.
+        $sifra = $Skladista | Where-Object { $f.Name -match ('(?<!\d){0}(?!\d)' -f [regex]::Escape($_)) } | Select-Object -First 1
         $sadrzaj = New-Object System.Net.Http.MultipartFormDataContent
         $bajtovi = New-Object System.Net.Http.ByteArrayContent(, [IO.File]::ReadAllBytes($f.FullName))
         $bajtovi.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse('application/octet-stream')

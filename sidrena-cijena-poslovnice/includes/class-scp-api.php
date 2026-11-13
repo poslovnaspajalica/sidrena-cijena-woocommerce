@@ -115,8 +115,9 @@ final class SCP_Api {
 			}
 			return [];
 		}
-		$parts = preg_split( '/[_\s]+/', (string) pathinfo( $filename, PATHINFO_FILENAME ) ) ?: [];
-		return array_values( array_filter( $stores, static fn( $s ) => in_array( strtolower( $s['skladiste'] ), array_map( 'strtolower', $parts ), true ) ) );
+		// Šifra kao cijela riječ u nazivu, npr. "..._PJ2-0000112_2_20261113_111226.csv".
+		$name = (string) pathinfo( $filename, PATHINFO_FILENAME );
+		return array_values( array_filter( $stores, static fn( $s ) => (bool) preg_match( '/(?<![A-Za-z0-9])' . preg_quote( $s['skladiste'], '/' ) . '(?![A-Za-z0-9])/i', $name ) ) );
 	}
 
 	public static function receive( WP_REST_Request $req ) {

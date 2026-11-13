@@ -95,7 +95,8 @@ Windows Task Scheduler su u mapi [`wand/`](../wand/README.md) repozitorija.
 1. **Poslovnice**: svakoj poslovnici upiši **šifru skladišta** (npr. `0000112`) koja se nalazi u nazivu datoteke.
 2. **Postavke → Automatski prijem cjenika**: uključi prijem i spremi; generira se ključ.
 3. Program šalje `POST` na `/wp-json/sidrena-poslovnice/v1/cjenik` sa zaglavljem `X-SCP-Kljuc`, poljem `datoteka`
-   (CSV ili Excel) i po želji poljem `skladiste`. Bez polja `skladiste` poslovnica se traži u nazivu datoteke.
+   (CSV ili Excel) i po želji poljem `skladiste`. Bez polja `skladiste` poslovnica se traži u nazivu datoteke:
+   šifra mora stajati kao zasebna riječ, npr. `Prodavaonica_Gundulićeva 7, 012101 Centar_PJ2-0000112_2_20261113_111226.csv`.
    `GET /wp-json/sidrena-poslovnice/v1/status` provjerava vezu i ključ i ništa ne mijenja.
 
 Datoteka se pretvara i objavljuje isto kao ručni upload, uključujući sidrene cijene. Odgovori:

@@ -159,9 +159,12 @@ try {
         $ispravne += $f
     }
 
-    # Je li stigla datoteka za svako skladište (šifra skladišta je dio naziva datoteke).
+    # Je li stigla datoteka za svako skladište. Šifra je dio naziva datoteke, npr.
+    # "Prodavaonica_Gundulićeva 7, 012101 Centar_PJ2-0000112_2_20261113_111226.csv";
+    # traži se kao cijeli broj (ne smije biti dio duljeg niza znamenki).
     foreach ($sifra in $Skladista.Keys) {
-        $ima = @($ispravne | Where-Object { $_.Name -like "*_$($sifra)_*" })
+        $uzorak = '(?<!\d){0}(?!\d)' -f [regex]::Escape($sifra)
+        $ima = @($ispravne | Where-Object { $_.Name -match $uzorak })
         if ($ima.Count -eq 0) {
             Log ("Nema ispravne datoteke za skladište {0} ({1})." -f $sifra, $Skladista[$sifra]) 'GRESKA'
             $greske++
