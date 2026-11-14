@@ -82,7 +82,7 @@ Računalo mora biti uključeno ujutro. Ako je u 05:30 ugašeno, zadatak se pokre
 | izvoz | nema datoteke za neko skladište | greška u logu i izlazni kod 1 |
 | web | manje od 50 % artikala zadnje objave | odbijeno, e-mail, ostaje jučerašnji cjenik |
 | web | nepoznata šifra skladišta | odbijeno, e-mail |
-| web | ista datoteka poslana ponovno | ne objavljuje se dvaput |
+| web | ista datoteka poslana ponovno istog dana | ne objavljuje se dvaput (idući dan se objavljuje i ako je sadržaj isti) |
 | slanje | nema veze ili server ne odgovara | datoteka ostaje u redu, novi pokušaj za 20 min |
 | web | nijedna datoteka do 07:00 | podsjetnik e-mailom (postavka plugina) |
 

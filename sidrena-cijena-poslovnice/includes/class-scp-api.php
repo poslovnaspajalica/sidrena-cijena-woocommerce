@@ -157,10 +157,11 @@ final class SCP_Api {
 	}
 
 	private static function process( array $store, string $tmp, string $ext, string $orig ) {
-		$hash  = (string) sha1_file( $tmp );
+		$dan   = wp_date( 'Y-m-d' );
+		$hash  = $dan . '|' . (string) sha1_file( $tmp ); // duplikat je samo ista datoteka istog dana
 		$state = self::state( $store['id'] );
 		if ( in_array( $hash, $state['hashes'], true ) ) {
-			self::log( $store['id'], $orig, 'duplikat', 'Ista datoteka je već objavljena, preskočeno.' );
+			self::log( $store['id'], $orig, 'duplikat', 'Ista datoteka je danas već objavljena, preskočeno.' );
 			return new WP_REST_Response(
 				[
 					'status'     => 'vec_objavljeno',
@@ -178,9 +179,8 @@ final class SCP_Api {
 		if ( $parsed['errors'] ) {
 			return self::fail( $store, $orig, implode( ' ', $parsed['errors'] ), 422 );
 		}
-		$dan = wp_date( 'Y-m-d' );
-		$t   = SCP_Convert::transform( $parsed, SCP_Settings::all(), $store['id'], $dan );
-		$n   = count( $t['rows'] );
+		$t = SCP_Convert::transform( $parsed, SCP_Settings::all(), $store['id'], $dan );
+		$n = count( $t['rows'] );
 		if ( ! $n ) {
 			return self::fail( $store, $orig, 'U datoteci nema nijednog retka s nazivom i cijenom.', 422 );
 		}

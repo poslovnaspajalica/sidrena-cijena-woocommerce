@@ -103,13 +103,13 @@ Datoteka se pretvara i objavljuje isto kao ručni upload, uključujući sidrene 
 
 | HTTP | Značenje | Što pošiljatelj radi |
 |---|---|---|
-| 200 | objavljeno ili ista datoteka već objavljena | briše datoteku iz reda za slanje |
+| 200 | objavljeno ili ista datoteka danas već objavljena | briše datoteku iz reda za slanje |
 | 400, 413, 415, 422 | neispravna datoteka, nepoznato skladište, premalo artikala | ne šalje ponovno; stiže e-mail |
 | 401, 403 | pogrešan ključ ili prijem isključen | provjeri postavke |
 | 409, 429, 5xx | obrada u tijeku, previše pokušaja, greška servera | pokuša ponovno kasnije |
 
 Zaštita: datoteka s manje od 50 % artikala zadnje objave te poslovnice se odbija (postavka, 0 = bez provjere), pa
-krnji izvoz ne zamijeni dobar cjenik. Ista datoteka poslana dvaput objavljuje se jednom. Nakon 10 pogrešnih ključeva
+krnji izvoz ne zamijeni dobar cjenik. Ista datoteka poslana dvaput istog dana objavljuje se jednom; idući dan objavljuje se ponovno i kad je sadržaj isti. Nakon 10 pogrešnih ključeva
 s iste IP adrese prijem je za nju blokiran sat vremena. Zadnjih 100 prijema vidi se u Postavkama.
 
 ## Ulazna datoteka (CSV ili Excel)
