@@ -23,6 +23,7 @@ final class SCP_Admin {
 		add_action( 'admin_post_scp_save_settings', [ __CLASS__, 'save_settings' ] );
 		add_action( 'admin_post_scp_delete_file', [ __CLASS__, 'delete_file' ] );
 		add_action( 'admin_post_scp_template', [ __CLASS__, 'download_template' ] );
+		add_action( 'admin_post_scp_clear_api_log', [ __CLASS__, 'clear_api_log' ] );
 		add_action( 'admin_notices', [ __CLASS__, 'notices' ] );
 		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'styles' ] );
 	}
@@ -768,9 +769,22 @@ else :
 			);
 		}
 		echo '</tbody></table>';
+		printf(
+			'<p><a class="button" href="%s" onclick="return confirm(\'Obrisati zapis zadnjih prijema? Objavljeni cjenici i zaštita od dvostrukog slanja ostaju.\')">Očisti zapis prijema</a> <span class="description">Čuva se najviše 100 zadnjih zapisa, starije se briše samo.</span></p>',
+			esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scp_clear_api_log' ), 'scp_clear_api_log' ) )
+		);
 	}
 
 	/* ---------- Handleri ---------- */
+
+	public static function clear_api_log(): void {
+		check_admin_referer( 'scp_clear_api_log' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nemate ovlasti.' );
+		}
+		$n = SCP_Api::clear_log();
+		self::redirect( 'postavke', 'Obrisano zapisa prijema: ' . $n . '.' );
+	}
 
 	public static function handle_upload(): void {
 		check_admin_referer( 'scp_upload' );

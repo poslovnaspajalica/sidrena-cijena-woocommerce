@@ -53,7 +53,7 @@ Sve je u tablici `wp_options` (prefiks ovisi o instalaciji):
 | `scp_settings`, `scp_settings_backup` | ostale postavke i njihova kopija |
 | `scp_manifest` | za koji dan vrijedi koja objavljena datoteka |
 | tablica `scp_bazne` | sidrene (bazne) cijene po poslovnici i artiklu |
-| `scp_api_log`, `scp_api_stanje` | dnevnik automatskih prijema; broj artikala zadnje objave i otisci poslanih datoteka |
+| `scp_api_log`, `scp_api_stanje` | dnevnik automatskih prijema (najviše 100 zapisa, gumb „Očisti zapis prijema“ u Postavkama); broj artikala zadnje objave i otisci poslanih datoteka po danu |
 
 Objavljene datoteke su u `wp-content/uploads/sidrena-cijena/poslovnice/<id poslovnice>/`.
 

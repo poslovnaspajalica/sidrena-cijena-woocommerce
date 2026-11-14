@@ -259,6 +259,14 @@ final class SCP_Api {
 		wp_cache_delete( self::LOG, 'options' );
 	}
 
+	/** Briše samo zapis prijema; zaštita od duplikata i broj artikala zadnje objave ostaju. */
+	public static function clear_log(): int {
+		$n = count( self::entries( 1000 ) );
+		delete_option( self::LOG );
+		wp_cache_delete( self::LOG, 'options' );
+		return $n;
+	}
+
 	/** @return array<int, array> */
 	public static function entries( int $limit = 30 ): array {
 		$log = SCP_Settings::raw( self::LOG );
